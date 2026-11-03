@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>點貨系統</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- 登入畫面 -->
+  <div id="login-view" class="login-wrap" hidden>
+    <form id="login-form" class="card login-card">
+      <h1>點貨系統</h1>
+      <label>帳號（Email）
+        <input type="email" id="login-email" required autocomplete="username">
+      </label>
+      <label>密碼
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </label>
+      <button type="submit" class="btn primary" id="login-btn">登入</button>
+      <p id="login-error" class="error"></p>
+    </form>
+  </div>
+
+  <!-- 系統畫面 -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="brand">點貨系統</div>
+      <nav id="nav">
+        <a href="#/dashboard" data-route="dashboard">主介面</a>
+        <a href="#/import"    data-route="import">版單匯入</a>
+        <a href="#/dispatch"  data-route="dispatch">出車點貨</a>
+        <a href="#/holds"     data-route="holds">人工清點</a>
+        <a href="#/staff"     data-route="staff">人員管理</a>
+      </nav>
+      <button id="logout-btn" class="btn ghost">登出</button>
+    </header>
+    <main id="page"></main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
