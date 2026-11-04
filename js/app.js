@@ -2,6 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { renderStaff } from './pages/staff.js';
 import { renderImport } from './pages/import.js';
+import { renderDispatch } from './pages/dispatch.js';
 
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -32,7 +33,7 @@ export function today() {
 const routes = {
   dashboard: page => placeholder(page, '主介面'),
   import:    renderImport,
-  dispatch:  page => placeholder(page, '出車點貨'),
+  dispatch:  renderDispatch,
   holds:     page => placeholder(page, '人工清點'),
   staff:     renderStaff,
 };

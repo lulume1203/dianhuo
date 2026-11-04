@@ -176,6 +176,94 @@ details summary { cursor: pointer; color: var(--primary); padding: 4px 0; }
 
 h3 { font-size: 17px; }
 
+/* ---------- 出車點貨 ---------- */
+.between { justify-content: space-between; }
+
+.scan-input {
+  width: 100%;
+  font-size: 28px !important;
+  padding: 14px 16px !important;
+  font-family: Consolas, "Courier New", monospace;
+  letter-spacing: 1px;
+}
+.scan-input:disabled { background: #f3f4f6; }
+.hint { margin: 8px 0 0; font-size: 14px; }
+
+.dispatch-tbl { min-width: 860px; }
+.dispatch-tbl td { vertical-align: top; }
+.actual-input { width: 70px; text-align: center; font-size: 18px !important; }
+
+.row-warn  td { background: #fffbeb; }
+.row-error td { background: #fef2f2; }
+.warn-text { color: #b45309; font-weight: 700; }
+
+@keyframes flash { from { background: #bbf7d0; } to { background: transparent; } }
+.dispatch-tbl tr.flash td { animation: flash 1.2s ease-out; }
+
+.driver-sum { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.driver-sum div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.driver-sum span { color: var(--muted); font-size: 14px; }
+
+/* 彈出視窗 */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+.modal-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+.modal-box h3 { margin: 0 0 12px; font-size: 22px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.big-no { font-family: Consolas, monospace; font-size: 24px; font-weight: 700; margin: 0 0 8px; }
+
+.pieces-compare {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+.pieces-compare > div:not(.arrow) {
+  flex: 1;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.pieces-compare > div:last-child { border-color: var(--primary); }
+.pieces-compare span { color: var(--muted); }
+.pieces-compare b { font-size: 48px; line-height: 1; }
+.pieces-compare small { color: #b45309; font-weight: 600; }
+.pieces-compare .arrow { font-size: 28px; color: var(--muted); }
+.pieces-input {
+  width: 100px;
+  font-size: 40px !important;
+  text-align: center;
+  font-weight: 700;
+  padding: 4px !important;
+}
+
 @media (max-width: 640px) {
   .topbar { padding: 10px 16px; }
   main { padding: 16px 12px; }
