@@ -1,6 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { renderStaff } from './pages/staff.js';
+import { renderImport } from './pages/import.js';
 
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -30,7 +31,7 @@ export function today() {
 // ---------- 頁面路由 ----------
 const routes = {
   dashboard: page => placeholder(page, '主介面'),
-  import:    page => placeholder(page, '版單匯入'),
+  import:    renderImport,
   dispatch:  page => placeholder(page, '出車點貨'),
   holds:     page => placeholder(page, '人工清點'),
   staff:     renderStaff,
@@ -39,7 +40,7 @@ const routes = {
 function placeholder(page, title) {
   page.innerHTML = `
     <h2>${title}</h2>
-    <div class="card muted">這個畫面下一步會做，先到「人員管理」新增人員。</div>`;
+    <div class="card muted">這個畫面接下來會做。</div>`;
 }
 
 function route() {
