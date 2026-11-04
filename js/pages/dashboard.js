@@ -1,4 +1,5 @@
 import { db, toast, esc, today } from '../app.js';
+import { downloadDriversExcel } from '../export.js';
 
 const LS_QUERIER = 'dianhuo.querier';
 const STATUSES = ['待到貨', '配送中', '部分出車', '留倉', '已送達'];
@@ -263,7 +264,7 @@ function bindRows(container, list, log) {
 async function loadDrivers(date) {
   const box = document.getElementById('dash-drivers');
   const { data, error } = await db.from('dispatch_batches')
-    .select('driver:staff!dispatch_batches_driver_id_fkey(name), dispatch_items(actual_pieces, shipment_id, shipments(is_cod, cod_amount, collect_amount))')
+    .select('driver_id, driver:staff!dispatch_batches_driver_id_fkey(name), dispatch_items(actual_pieces, shipment_id, shipments(is_cod, cod_amount, collect_amount))')
     .eq('work_date', date);
 
   if (error) { box.innerHTML = `<span class="error">讀取失敗：${esc(error.message)}</span>`; return; }
@@ -272,7 +273,7 @@ async function loadDrivers(date) {
   const by = {};
   for (const b of data) {
     const n = b.driver?.name || '?';
-    by[n] ??= { rows: 0, pieces: 0, cod: 0, codRows: 0, missing: 0 };
+    by[n] ??= { id: b.driver_id, rows: 0, pieces: 0, cod: 0, codRows: 0, missing: 0 };
     for (const it of b.dispatch_items) {
       by[n].rows++;
       by[n].pieces += it.actual_pieces;
@@ -283,21 +284,41 @@ async function loadDrivers(date) {
     }
   }
 
+  const list = Object.entries(by).sort((a, b) => b[1].rows - a[1].rows);
+
   box.className = '';
   box.innerHTML = `
-    <table class="tbl">
-      <thead><tr><th>司機</th><th class="center">筆數</th><th class="center">件數</th><th>到付 / 代收要收</th><th class="center">查無此號</th></tr></thead>
-      <tbody>
-        ${Object.entries(by).sort((a, b) => b[1].rows - a[1].rows).map(([n, v]) => `
-          <tr>
-            <td><b>${esc(n)}</b></td>
-            <td class="center">${v.rows}</td>
-            <td class="center">${v.pieces}</td>
-            <td>${v.cod ? `<span class="cod">${money(v.cod)}</span> <small class="muted">（${v.codRows} 筆）</small>` : ''}</td>
-            <td class="center">${v.missing ? `<span class="error">${v.missing}</span>` : ''}</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>司機</th><th class="center">筆數</th><th class="center">件數</th><th>到付 / 代收要收</th><th class="center">查無此號</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(([n, v]) => `
+            <tr>
+              <td><b>${esc(n)}</b></td>
+              <td class="center">${v.rows}</td>
+              <td class="center">${v.pieces}</td>
+              <td>${v.cod ? `<span class="cod">${money(v.cod)}</span> <small class="muted">（${v.codRows} 筆）</small>` : ''}</td>
+              <td class="center">${v.missing ? `<span class="error">${v.missing}</span>` : ''}</td>
+              <td class="nowrap">
+                <button class="btn small dl-one" data-id="${v.id}" data-name="${esc(n)}">下載 Excel</button>
+                <a class="btn small" href="#/route?date=${date}&driver=${v.id}">路線</a>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${list.length > 1 ? `<button class="btn" id="dl-all" style="margin-top:12px">全部司機下載（一人一頁）</button>` : ''}`;
+
+  const dl = async (drivers, btn) => {
+    btn.disabled = true;
+    try { await downloadDriversExcel(date, drivers); }
+    catch (e) { toast('下載失敗：' + e.message, 'error'); }
+    btn.disabled = false;
+  };
+  box.querySelectorAll('.dl-one').forEach(b => b.addEventListener('click', () =>
+    dl([{ id: Number(b.dataset.id), name: b.dataset.name }], b)));
+  document.getElementById('dl-all')?.addEventListener('click', e =>
+    dl(list.map(([n, v]) => ({ id: v.id, name: n })), e.target));
 }
 
 // =====================================================

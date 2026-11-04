@@ -4,6 +4,8 @@ import { renderStaff } from './pages/staff.js';
 import { renderImport } from './pages/import.js';
 import { renderDispatch } from './pages/dispatch.js';
 import { renderDashboard } from './pages/dashboard.js';
+import { renderHolds } from './pages/holds.js';
+import { renderRoute } from './pages/route.js';
 
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -35,18 +37,13 @@ const routes = {
   dashboard: renderDashboard,
   import:    renderImport,
   dispatch:  renderDispatch,
-  holds:     page => placeholder(page, '人工清點'),
+  holds:     renderHolds,
+  route:     renderRoute,
   staff:     renderStaff,
 };
 
-function placeholder(page, title) {
-  page.innerHTML = `
-    <h2>${title}</h2>
-    <div class="card muted">這個畫面接下來會做。</div>`;
-}
-
 function route() {
-  const name = location.hash.replace('#/', '') || 'dashboard';
+  const name = location.hash.replace('#/', '').split('?')[0] || 'dashboard';
   const fn = routes[name] || routes.dashboard;
   document.querySelectorAll('#nav a').forEach(a =>
     a.classList.toggle('active', a.dataset.route === name));
@@ -58,8 +55,11 @@ window.addEventListener('hashchange', route);
 // ---------- 登入 / 登出 ----------
 const loginView = document.getElementById('login-view');
 const appView   = document.getElementById('app-view');
+let shown = null;
 
 function showApp(loggedIn) {
+  if (shown === loggedIn) return;   // 避免重複畫面（登入狀態更新時會觸發多次）
+  shown = loggedIn;
   loginView.hidden = loggedIn;
   appView.hidden   = !loggedIn;
   if (loggedIn) route();

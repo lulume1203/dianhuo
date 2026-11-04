@@ -338,6 +338,28 @@ h3 { font-size: 17px; }
 .query-count b { font-size: 20px; }
 .query-count span { font-size: 14px; }
 
+/* ---------- 人工清點 / 路線 ---------- */
+.hold-tbl { min-width: 960px; }
+.hold-tbl td { vertical-align: top; }
+.hold-tbl select { max-width: 190px; }
+.nowrap { white-space: nowrap; }
+a.btn { text-decoration: none; color: inherit; display: inline-block; }
+a.btn.primary { color: #fff; }
+
+.route-map { width: 100%; height: 460px; border-radius: 8px; background: #e5e7eb; }
+.stop-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: #ea4335;
+  color: #fff;
+  font-weight: 700;
+}
+.steps li { margin-bottom: 10px; line-height: 1.6; }
+code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; }
+
 @media (max-width: 640px) {
   .topbar { padding: 10px 16px; }
   main { padding: 16px 12px; }
