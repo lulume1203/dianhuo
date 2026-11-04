@@ -3,6 +3,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { renderStaff } from './pages/staff.js';
 import { renderImport } from './pages/import.js';
 import { renderDispatch } from './pages/dispatch.js';
+import { renderDashboard } from './pages/dashboard.js';
 
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -31,7 +32,7 @@ export function today() {
 
 // ---------- 頁面路由 ----------
 const routes = {
-  dashboard: page => placeholder(page, '主介面'),
+  dashboard: renderDashboard,
   import:    renderImport,
   dispatch:  renderDispatch,
   holds:     page => placeholder(page, '人工清點'),
