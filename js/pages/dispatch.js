@@ -130,8 +130,11 @@ export async function renderDispatch(page) {
     </div>
 
     <div class="card">
-      <h3 style="margin-top:0">今日已存檔</h3>
-      <div id="d-saved" class="muted">載入中…</div>
+      <div class="row between">
+        <h3 style="margin:0">已存檔紀錄</h3>
+        <input type="date" id="d-saved-date" value="${today()}">
+      </div>
+      <div id="d-saved" class="muted" style="margin-top:12px">載入中…</div>
     </div>
 
     <div id="d-modal" class="modal" hidden></div>`;
@@ -198,6 +201,8 @@ export async function renderDispatch(page) {
     renderList();
     input.focus();
   });
+
+  document.getElementById('d-saved-date').addEventListener('change', loadSaved);
 
   updateInput();
   renderList();
@@ -515,17 +520,20 @@ async function save() {
 }
 
 // =====================================================
-// 今日已存檔
+// 已存檔紀錄（可展開、取消）
 // =====================================================
+const openBatches = new Set();
+
 async function loadSaved() {
   const box = document.getElementById('d-saved');
+  const date = document.getElementById('d-saved-date')?.value || today();
   const { data, error } = await db.from('dispatch_batches')
-    .select('id, created_at, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name), dispatch_items(actual_pieces, shipment_id)')
-    .eq('work_date', today())
+    .select('id, created_at, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name), dispatch_items(id, waybill_no, system_pieces, actual_pieces, shipment_id, shipments(receiver, address))')
+    .eq('work_date', date)
     .order('created_at', { ascending: false });
 
   if (error) { box.innerHTML = `<span class="error">讀取失敗：${esc(error.message)}</span>`; return; }
-  if (!data.length) { box.className = 'muted'; box.textContent = '今天還沒有存檔紀錄。'; return; }
+  if (!data.length) { box.className = 'muted'; box.textContent = `${date} 沒有存檔紀錄。`; return; }
 
   // 依司機加總
   const byDriver = {};
@@ -543,17 +551,58 @@ async function loadSaved() {
         <div><b>${esc(n)}</b><span>${v.count} 筆 / ${v.pieces} 件</span></div>`).join('')}
     </div>
     <table class="tbl">
-      <thead><tr><th>時間</th><th>司機</th><th>刷單人</th><th class="center">筆數</th><th class="center">件數</th><th class="center">查無此號</th></tr></thead>
+      <thead><tr><th></th><th>時間</th><th>司機</th><th>刷單人</th><th class="center">筆數</th><th class="center">件數</th><th class="center">查無此號</th><th></th></tr></thead>
       <tbody>
-        ${data.map(b => `
-          <tr>
+        ${data.map(b => {
+          const open = openBatches.has(b.id);
+          return `
+          <tr class="batch-row" data-id="${b.id}">
+            <td class="toggle">${open ? '▼' : '▶'}</td>
             <td>${timeOf(b.created_at)}</td>
             <td>${esc(b.driver?.name)}</td>
             <td>${esc(b.scanner?.name)}</td>
             <td class="center">${b.dispatch_items.length}</td>
             <td class="center">${b.dispatch_items.reduce((a, x) => a + x.actual_pieces, 0)}</td>
             <td class="center">${b.dispatch_items.filter(x => !x.shipment_id).length || ''}</td>
-          </tr>`).join('')}
+            <td><button class="btn small danger del-batch" data-id="${b.id}" data-n="${b.dispatch_items.length}" data-name="${esc(b.driver?.name)}">整批取消</button></td>
+          </tr>
+          ${open ? `
+          <tr class="batch-detail"><td></td><td colspan="7">
+            <table class="tbl inner">
+              ${b.dispatch_items.map(it => `
+                <tr>
+                  <td class="mono">${esc(it.waybill_no)}${it.shipment_id ? '' : ' <small class="error">查無此號</small>'}</td>
+                  <td>${esc(it.shipments?.receiver)} <small class="muted">${esc(it.shipments?.address)}</small></td>
+                  <td class="center">${it.actual_pieces}${it.system_pieces ? ` / ${it.system_pieces}` : ''} 件</td>
+                  <td><button class="btn small del-item-saved" data-id="${it.id}" data-no="${esc(it.waybill_no)}">取消這筆</button></td>
+                </tr>`).join('')}
+            </table>
+          </td></tr>` : ''}`;
+        }).join('')}
       </tbody>
-    </table>`;
+    </table>
+    <p class="muted">點一列可以展開明細。取消後，該單會恢復成「待到貨」（或部分出車），可以重新刷。</p>`;
+
+  box.querySelectorAll('.batch-row').forEach(tr => tr.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const id = Number(tr.dataset.id);
+    openBatches.has(id) ? openBatches.delete(id) : openBatches.add(id);
+    loadSaved();
+  }));
+
+  box.querySelectorAll('.del-batch').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`確定取消「${btn.dataset.name}」這一批，共 ${btn.dataset.n} 筆出車？`)) return;
+    const { error } = await db.from('dispatch_batches').delete().eq('id', btn.dataset.id);
+    if (error) { toast('取消失敗：' + error.message, 'error'); return; }
+    toast('已取消整批出車', 'ok');
+    loadSaved();
+  }));
+
+  box.querySelectorAll('.del-item-saved').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`確定取消 ${btn.dataset.no} 的出車？`)) return;
+    const { error } = await db.from('dispatch_items').delete().eq('id', btn.dataset.id);
+    if (error) { toast('取消失敗：' + error.message, 'error'); return; }
+    toast(`已取消 ${btn.dataset.no}`, 'ok');
+    loadSaved();
+  }));
 }

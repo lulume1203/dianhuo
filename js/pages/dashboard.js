@@ -386,10 +386,10 @@ async function openDetail(s, log) {
 
   const [disp, holds, logs] = await Promise.all([
     db.from('dispatch_items')
-      .select('created_at, actual_pieces, system_pieces, dispatch_batches(work_date, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name))')
+      .select('id, created_at, actual_pieces, system_pieces, dispatch_batches(work_date, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name))')
       .eq('shipment_id', s.id).order('created_at'),
     db.from('holds')
-      .select('created_at, reason, arrived_pieces, note, staff(name)')
+      .select('id, created_at, reason, arrived_pieces, note, staff(name)')
       .eq('shipment_id', s.id).order('created_at'),
     db.from('query_logs')
       .select('created_at, staff(name)')
@@ -440,13 +440,14 @@ async function openDetail(s, log) {
       <h4>出車紀錄</h4>
       ${dispRows.length ? `
         <table class="tbl">
-          <thead><tr><th>時間</th><th>司機</th><th>刷單人</th><th class="center">件數</th></tr></thead>
+          <thead><tr><th>時間</th><th>司機</th><th>刷單人</th><th class="center">件數</th><th></th></tr></thead>
           <tbody>${dispRows.map(d => `
             <tr>
               <td>${esc(d.dispatch_batches?.work_date || dateOf(d.created_at))} ${timeOf(d.created_at)}</td>
               <td><b>${esc(d.dispatch_batches?.driver?.name)}</b></td>
               <td>${esc(d.dispatch_batches?.scanner?.name)}</td>
               <td class="center">${d.actual_pieces}${d.system_pieces ? ` / ${d.system_pieces}` : ''}</td>
+              <td><button class="btn small cancel-disp" data-id="${d.id}">取消出車</button></td>
             </tr>`).join('')}
           </tbody>
         </table>` : `<p class="muted">還沒有出車</p>`}
@@ -454,13 +455,14 @@ async function openDetail(s, log) {
       ${holdRows.length ? `
         <h4>留倉紀錄</h4>
         <table class="tbl">
-          <thead><tr><th>時間</th><th>原因</th><th>說明</th><th>處理人</th></tr></thead>
+          <thead><tr><th>時間</th><th>原因</th><th>說明</th><th>處理人</th><th></th></tr></thead>
           <tbody>${holdRows.map(h => `
             <tr>
               <td>${dateOf(h.created_at)} ${timeOf(h.created_at)}</td>
               <td>${esc(h.reason)}</td>
               <td>${h.arrived_pieces ? `到 ${h.arrived_pieces} 件 ` : ''}${esc(h.note)}</td>
               <td>${esc(h.staff?.name)}</td>
+              <td><button class="btn small cancel-hold" data-id="${h.id}">取消留倉</button></td>
             </tr>`).join('')}
           </tbody>
         </table>` : ''}
@@ -480,5 +482,23 @@ async function openDetail(s, log) {
   const onKey = e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); } };
   document.addEventListener('keydown', onKey);
   document.getElementById('detail-close').addEventListener('click', close);
+
+  // 取消出車 / 取消留倉：刪除紀錄後，重新讀取這筆並更新畫面
+  const undo = async (table, id, msg) => {
+    if (!confirm(msg)) return;
+    const { error } = await db.from(table).delete().eq('id', id);
+    if (error) { toast('取消失敗：' + error.message, 'error'); return; }
+    toast('已取消', 'ok');
+    const { data: fresh } = await db.from('shipments')
+      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount')
+      .eq('id', s.id).single();
+    close();
+    loadDay();
+    if (fresh) openDetail(fresh, false);
+  };
+  m.querySelectorAll('.cancel-disp').forEach(b => b.addEventListener('click', () =>
+    undo('dispatch_items', b.dataset.id, `確定取消 ${s.waybill_no} 這次出車？`)));
+  m.querySelectorAll('.cancel-hold').forEach(b => b.addEventListener('click', () =>
+    undo('holds', b.dataset.id, `確定取消 ${s.waybill_no} 的留倉紀錄？`)));
   m.onclick = e => { if (e.target === m) close(); };   // 點視窗外面也可以關閉
 }

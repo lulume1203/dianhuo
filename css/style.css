@@ -358,6 +358,16 @@ a.btn.primary { color: #fff; }
   font-weight: 700;
 }
 .steps li { margin-bottom: 10px; line-height: 1.6; }
+
+/* 取消按鈕 / 已存檔展開 */
+.btn.danger { color: var(--danger); border-color: #fca5a5; }
+.btn.danger:hover { background: #fef2f2; }
+.batch-row { cursor: pointer; }
+.batch-row:hover td { background: #f9fafb; }
+.batch-row .toggle { width: 20px; color: var(--muted); }
+.batch-detail > td { background: #f9fafb; padding-top: 0; }
+.tbl.inner td { padding: 6px 8px; font-size: 14px; }
+details.card summary { font-weight: 600; }
 code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; }
 
 @media (max-width: 640px) {
