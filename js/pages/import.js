@@ -1,6 +1,24 @@
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 import { db, toast, esc, today } from '../app.js';
-import { PARSERS, detectCarrier, dedupe } from '../parsers.js';
+import { PARSERS, detectCarrier, dedupe, PDF_PARSERS, detectPdfCarrier, itemsToLines } from '../parsers.js';
+
+// PDF 讀取工具（用到時才載入）
+const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/';
+let pdfjsLib = null;
+
+async function readPdf(buf) {
+  if (!pdfjsLib) {
+    pdfjsLib = await import(PDFJS + 'pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.mjs';
+  }
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const tc = await (await doc.getPage(i)).getTextContent();
+    pages.push(itemsToLines(tc.items.map(t => ({ str: t.str, x: t.transform[4], y: t.transform[5], w: t.width }))));
+  }
+  return pages;
+}
 
 let carriers = [];   // [{id, name}]
 let parsed = [];     // 讀取後、尚未匯入的結果
@@ -87,23 +105,33 @@ async function readAll() {
     const item = { carrier, file: j.file, rows: [], warnings: [], errors: [], sourceDate: null, existing: 0 };
     parsed.push(item);
 
-    if (/\.pdf$/i.test(j.file.name)) {
-      item.errors.push('PDF 匯入還沒做好，等拿到聯新的樣本後加入');
-      continue;
-    }
-    const parser = PARSERS[carrier.name];
+    const isPdf = /\.pdf$/i.test(j.file.name);
+    const parser = (isPdf ? PDF_PARSERS : PARSERS)[carrier.name];
     if (!parser) {
-      item.errors.push(`「${carrier.name}」的版單格式還沒設定，請提供樣本檔`);
+      item.errors.push(isPdf
+        ? `「${carrier.name}」的 PDF 版單格式還沒設定，請提供樣本檔`
+        : `「${carrier.name}」的 Excel 版單格式還沒設定，請提供樣本檔`);
       continue;
     }
 
     try {
       const buf = await j.file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
-      const sheetName = wb.SheetNames.includes('單據資料') ? '單據資料' : wb.SheetNames[0];
-      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: '' });
+      let raw, detected;
 
-      const detected = detectCarrier(raw);
+      if (isPdf) {
+        raw = await readPdf(buf);
+        if (!raw.flat().length) {
+          item.errors.push('這個 PDF 讀不到文字（可能是掃描的圖片檔），請改用系統直接匯出或列印的 PDF');
+          continue;
+        }
+        detected = detectPdfCarrier(raw);
+      } else {
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheetName = wb.SheetNames.includes('單據資料') ? '單據資料' : wb.SheetNames[0];
+        raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: '' });
+        detected = detectCarrier(raw);
+      }
+
       if (detected && detected !== carrier.name) {
         item.errors.push(`這個檔案看起來是「${detected}」的格式，但你選的是「${carrier.name}」，請確認`);
         continue;
@@ -196,7 +224,7 @@ function renderPreview() {
                       <td>${esc(s.origin_station)}</td>
                       <td>${esc(s.sender)}</td>
                       <td>${payCell(s)}</td>
-                      <td>${esc(s.receiver)}</td>
+                      <td>${esc(s.receiver)}${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
                       <td class="center">${s.pieces}</td>
                       <td>${esc(s.address)}</td>
                     </tr>`).join('')}

@@ -10,7 +10,7 @@ export async function fetchDriverStops(date, driverId) {
     .select(`waybill_no, system_pieces, actual_pieces, created_at, shipment_id,
              dispatch_batches!inner(work_date, driver_id),
              shipments(id, waybill_no, sender, receiver, receiver_phone, address,
-                       payment_type, is_cod, cod_amount, collect_amount, lat, lng, geocode_status,
+                       payment_type, is_cod, cod_amount, collect_amount, remark, lat, lng, geocode_status,
                        carriers(name))`)
     .eq('dispatch_batches.work_date', date)
     .eq('dispatch_batches.driver_id', driverId)
@@ -33,6 +33,7 @@ export async function fetchDriverStops(date, driverId) {
       cod: s.is_cod ? Number(s.cod_amount) || 0 : 0,
       collect: Number(s.collect_amount) || 0,
       lat: s.lat, lng: s.lng, geocode_status: s.geocode_status,
+      remark: s.remark || '',
       notFound: !d.shipment_id,
     };
   });
@@ -47,7 +48,7 @@ function buildSheet(driverName, date, rows) {
     [`${driverName}　${date}　出車清單`],
     [`共 ${rows.length} 筆、${pieces} 件${money ? `，到付／代收合計 $${money.toLocaleString()}` : ''}`],
     [],
-    ['順序', '快遞', '單號', '寄件人', '收件人', '電話', '地址', '系統件數', '出車件數', '付款', '到付金額', '代收款', '簽收'],
+    ['順序', '快遞', '單號', '寄件人', '收件人', '電話', '地址', '備註', '系統件數', '出車件數', '付款', '到付金額', '代收款', '簽收'],
     ...rows.map((r, i) => [
       r.stop ?? i + 1,
       r.carrier,
@@ -56,6 +57,7 @@ function buildSheet(driverName, date, rows) {
       r.receiver,
       r.phone,
       r.address,
+      r.remark,
       r.system_pieces ?? '',
       r.actual_pieces,
       r.notFound ? '版單查無此號' : r.payment,
@@ -66,8 +68,8 @@ function buildSheet(driverName, date, rows) {
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [6, 8, 16, 14, 16, 13, 36, 8, 8, 10, 9, 9, 10].map(w => ({ wch: w }));
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }];
+  ws['!cols'] = [6, 8, 16, 14, 16, 13, 36, 20, 8, 8, 10, 9, 9, 10].map(w => ({ wch: w }));
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } }];
   return ws;
 }
 

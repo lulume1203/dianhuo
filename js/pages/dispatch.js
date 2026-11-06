@@ -253,7 +253,7 @@ async function onScan(raw) {
   busy = true;
   try {
     const { data, error } = await db.from('shipments')
-      .select('id, work_date, waybill_no, barcodes, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, carriers(name)')
+      .select('id, work_date, waybill_no, barcodes, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark, carriers(name)')
       .gte('work_date', addDays(today(), -LOOKBACK_DAYS))
       .lte('work_date', today())
       .or(`waybill_no.eq.${code},barcodes.cs.{${code}}`)
@@ -313,6 +313,7 @@ async function onScan(raw) {
           <p class="big-no">${esc(s.waybill_no)} <span class="muted">${esc(s.carriers?.name)}</span></p>
           ${s.work_date !== today() ? `<p class="warn-msg msg">這是 ${esc(s.work_date)} 的版單</p>` : ''}
           ${s.is_cod ? `<p class="cod">到付 ${money(s.cod_amount)}</p>` : ''}
+          ${s.remark ? `<p class="remark">📝 ${esc(s.remark)}</p>` : ''}
           <div class="pieces-compare">
             <div>
               <span>系統件數</span>
@@ -358,6 +359,7 @@ function addFromShipment(s, already, actual) {
     is_cod: s.is_cod,
     cod_amount: s.cod_amount,
     collect_amount: s.collect_amount,
+    remark: s.remark,
     system_pieces: s.pieces,
     already,
     actual_pieces: actual,
@@ -415,7 +417,7 @@ function renderList() {
           ${it.notFound ? '<br><small class="error">版單查無此號</small>' : ''}
           ${it.work_date && it.work_date !== today() ? `<br><small class="muted">${esc(it.work_date)} 版單</small>` : ''}
         </td>
-        <td>${esc(it.receiver)}<br><small class="muted">${esc(it.address)}</small></td>
+        <td>${esc(it.receiver)}<br><small class="muted">${esc(it.address)}</small>${it.remark ? `<br><span class="remark">📝 ${esc(it.remark)}</span>` : ''}</td>
         <td>${payCell(it)}</td>
         <td class="center">
           ${it.system_pieces ?? '-'}

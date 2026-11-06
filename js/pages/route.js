@@ -19,8 +19,9 @@ let depotLatLng = null;
 // 地址整理
 // =====================================================
 function fullAddress(a) {
-  let s = String(a || '').replace(/\s+/g, '')
-    .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));   // 全形轉半形
+  let s = String(a || '').replace(/^\d{3,6}\s*/, '').replace(/\s+/g, '')
+    .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))   // 全形轉半形
+    .replace(/\(.*?\)|（.*?）/g, '');                                              // 去掉括號裡的說明，例如（指定送貨時間）
   s = s.replace(/09\d{2}-?\d{3}-?\d{3}$/, '').replace(/0\d{1,2}-?\d{6,8}$/, '');      // 去掉黏在後面的電話
   s = s.replace(/^桃園(?=(中壢|平鎮|八德|楊梅|蘆竹|大溪|龜山|大園|觀音|新屋|龍潭|復興|桃園)區)/, '桃園市');
   if (!/[市縣]/.test(s.slice(0, 4))) {
@@ -264,7 +265,7 @@ function finish(driver, date, order, noAddr, km) {
               <tr>
                 <td class="center"><span class="stop-no">${st.stop}</span></td>
                 <td>${esc(st.address)}</td>
-                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>`).join('<br>')}</td>
+                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
                 <td class="center">${pieces(st)}</td>
                 <td>${money(st) ? `<span class="cod">$${money(st).toLocaleString()}</span>` : ''}</td>
                 <td><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(st.address)}">地圖</a></td>
@@ -273,7 +274,7 @@ function finish(driver, date, order, noAddr, km) {
               <tr class="row-error">
                 <td class="center">-</td>
                 <td><small class="error">版單沒有地址</small></td>
-                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>`).join('<br>')}</td>
+                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
                 <td class="center">${pieces(st)}</td>
                 <td>${money(st) ? `<span class="cod">$${money(st).toLocaleString()}</span>` : ''}</td>
                 <td></td>

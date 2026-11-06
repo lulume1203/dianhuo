@@ -127,7 +127,7 @@ async function loadDay() {
 
   try {
     shipments = await fetchAll(() => db.from('shipments')
-      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount')
+      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
       .eq('work_date', date)
       .order('id'));
   } catch (e) {
@@ -244,7 +244,7 @@ function shipmentTable(list, sameDay) {
             <td>${esc(cname(s.carrier_id))}</td>
             <td class="mono">${esc(s.waybill_no)}</td>
             <td>${esc(s.sender)}<br><small class="muted">${esc(s.origin_station)}</small></td>
-            <td>${esc(s.receiver)}<br><small class="muted">${esc(s.address)}</small></td>
+            <td>${esc(s.receiver)}<br><small class="muted">${esc(s.address)}</small>${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
             <td>${payCell(s)}</td>
             <td class="center">${s.pieces}${s.dispatched_pieces && s.dispatched_pieces < s.pieces ? `<br><small class="warn-text">已出 ${s.dispatched_pieces}</small>` : ''}</td>
             <td>${badge(s.status)}</td>
@@ -337,7 +337,7 @@ async function search() {
   const code = kw.toUpperCase();
 
   let q = db.from('shipments')
-    .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount')
+    .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
     .order('work_date', { ascending: false })
     .limit(100);
 
@@ -435,6 +435,7 @@ async function openDetail(s, log) {
         <dt>地址</dt><dd>${esc(s.address)}</dd>
         <dt>件數</dt><dd>${s.pieces} 件${s.dispatched_pieces ? `（已出車 ${s.dispatched_pieces} 件）` : ''}</dd>
         <dt>付款</dt><dd>${payCell(s) || '-'}</dd>
+        ${s.remark ? `<dt>備註</dt><dd class="remark">${esc(s.remark)}</dd>` : ''}
       </dl>
 
       <h4>出車紀錄</h4>
@@ -490,7 +491,7 @@ async function openDetail(s, log) {
     if (error) { toast('取消失敗：' + error.message, 'error'); return; }
     toast('已取消', 'ok');
     const { data: fresh } = await db.from('shipments')
-      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount')
+      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
       .eq('id', s.id).single();
     close();
     loadDay();

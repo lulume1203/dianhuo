@@ -375,3 +375,7 @@ code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; }
   main { padding: 16px 12px; }
   .tbl th, .tbl td { padding: 8px 4px; }
 }
+
+/* 備註（例如：中午前到貨、重要文件不可寄放） */
+.remark { color: #b45309; font-size: 14px; font-weight: 600; }
+p.remark { margin: 4px 0; }
