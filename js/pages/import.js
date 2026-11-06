@@ -1,5 +1,5 @@
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
-import { db, toast, esc, today } from '../app.js';
+import { db, toast, esc, today, showName } from '../app.js';
 import { PARSERS, detectCarrier, dedupe, PDF_PARSERS, detectPdfCarrier, itemsToLines } from '../parsers.js';
 
 // PDF 讀取工具（用到時才載入）
@@ -222,9 +222,9 @@ function renderPreview() {
                     <tr>
                       <td class="mono">${esc(s.waybill_no)}</td>
                       <td>${esc(s.origin_station)}</td>
-                      <td>${esc(s.sender)}</td>
+                      <td>${esc(showName(s.sender))}</td>
                       <td>${payCell(s)}</td>
-                      <td>${esc(s.receiver)}${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
+                      <td>${esc(showName(s.receiver))}${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
                       <td class="center">${s.pieces}</td>
                       <td>${esc(s.address)}</td>
                     </tr>`).join('')}
@@ -270,9 +270,9 @@ async function commit() {
       source_date: p.sourceDate,
     }));
 
+    // 由資料庫函式寫入（已存在的單號會更新資料，但不會動到點貨狀態）
     for (let i = 0; i < payload.length; i += 500) {
-      const { error } = await db.from('shipments')
-        .upsert(payload.slice(i, i + 500), { onConflict: 'work_date,carrier_id,waybill_no' });
+      const { error } = await db.rpc('import_shipments', { p_rows: payload.slice(i, i + 500) });
       if (error) {
         toast(`${p.carrier.name} 寫入失敗：${error.message}`, 'error');
         btn.disabled = false;

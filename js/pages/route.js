@@ -1,4 +1,4 @@
-import { db, toast, esc, today } from '../app.js';
+import { db, toast, esc, today, showName } from '../app.js';
 import { GOOGLE_MAPS_KEY, DEPOT } from '../maps-config.js';
 import { fetchDriverStops, downloadDriversExcel } from '../export.js';
 
@@ -265,7 +265,7 @@ function finish(driver, date, order, noAddr, km) {
               <tr>
                 <td class="center"><span class="stop-no">${st.stop}</span></td>
                 <td>${esc(st.address)}</td>
-                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
+                <td>${st.rows.map(r => `${esc(showName(r.receiver))} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
                 <td class="center">${pieces(st)}</td>
                 <td>${money(st) ? `<span class="cod">$${money(st).toLocaleString()}</span>` : ''}</td>
                 <td><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(st.address)}">地圖</a></td>
@@ -274,7 +274,7 @@ function finish(driver, date, order, noAddr, km) {
               <tr class="row-error">
                 <td class="center">-</td>
                 <td><small class="error">版單沒有地址</small></td>
-                <td>${st.rows.map(r => `${esc(r.receiver)} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
+                <td>${st.rows.map(r => `${esc(showName(r.receiver))} <small class="muted mono">${esc(r.waybill_no)}</small>${r.remark ? `<br><span class="remark">📝 ${esc(r.remark)}</span>` : ''}`).join('<br>')}</td>
                 <td class="center">${pieces(st)}</td>
                 <td>${money(st) ? `<span class="cod">$${money(st).toLocaleString()}</span>` : ''}</td>
                 <td></td>

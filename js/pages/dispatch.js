@@ -1,4 +1,4 @@
-import { db, toast, esc, today } from '../app.js';
+import { db, toast, esc, today, showName } from '../app.js';
 
 // 往回找幾天內的版單（分批到貨、留倉後才出車的單）
 const LOOKBACK_DAYS = 14;
@@ -411,13 +411,13 @@ function renderList() {
     return `
       <tr class="${cls}" data-i="${i}">
         <td>${n - i}</td>
-        <td>${esc(it.carrier)}</td>
+        <td>${it.carrier ? `<span class="carrier-tag c-${esc(it.carrier)}">${esc(it.carrier)}</span>` : ''}</td>
         <td class="mono">
           ${esc(it.waybill_no)}
           ${it.notFound ? '<br><small class="error">版單查無此號</small>' : ''}
           ${it.work_date && it.work_date !== today() ? `<br><small class="muted">${esc(it.work_date)} 版單</small>` : ''}
         </td>
-        <td>${esc(it.receiver)}<br><small class="muted">${esc(it.address)}</small>${it.remark ? `<br><span class="remark">📝 ${esc(it.remark)}</span>` : ''}</td>
+        <td>${esc(showName(it.receiver))}<br><small class="muted">${esc(it.address)}</small>${it.remark ? `<br><span class="remark">📝 ${esc(it.remark)}</span>` : ''}</td>
         <td>${payCell(it)}</td>
         <td class="center">
           ${it.system_pieces ?? '-'}
@@ -574,7 +574,7 @@ async function loadSaved() {
               ${b.dispatch_items.map(it => `
                 <tr>
                   <td class="mono">${esc(it.waybill_no)}${it.shipment_id ? '' : ' <small class="error">查無此號</small>'}</td>
-                  <td>${esc(it.shipments?.receiver)} <small class="muted">${esc(it.shipments?.address)}</small></td>
+                  <td>${esc(showName(it.shipments?.receiver))} <small class="muted">${esc(it.shipments?.address)}</small></td>
                   <td class="center">${it.actual_pieces}${it.system_pieces ? ` / ${it.system_pieces}` : ''} 件</td>
                   <td><button class="btn small del-item-saved" data-id="${it.id}" data-no="${esc(it.waybill_no)}">取消這筆</button></td>
                 </tr>`).join('')}

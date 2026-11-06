@@ -3,24 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- 只允許載入指定來源的程式，降低被植入惡意程式的風險 -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com https://challenges.cloudflare.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
+    font-src 'self' data:;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com;
+    worker-src 'self' blob: https://cdn.jsdelivr.net;
+    frame-src https://challenges.cloudflare.com;
+    object-src 'none';
+    base-uri 'none';
+    form-action 'self';">
   <title>點貨系統</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-  <!-- 登入畫面 -->
-  <div id="login-view" class="login-wrap" hidden>
+  <!-- 登入 -->
+  <div id="login-view" class="center-wrap" hidden>
     <form id="login-form" class="card login-card">
       <h1>點貨系統</h1>
-      <label>帳號（Email）
-        <input type="email" id="login-email" required autocomplete="username">
+      <label>帳號
+        <input type="text" id="login-email" required autocomplete="username" autocapitalize="off" spellcheck="false">
       </label>
       <label>密碼
         <input type="password" id="login-password" required autocomplete="current-password">
       </label>
-      <button type="submit" class="btn primary" id="login-btn">登入</button>
+      <div id="captcha"></div>
+      <button type="submit" class="btn primary big" id="login-btn">登入</button>
       <p id="login-error" class="error"></p>
     </form>
+  </div>
+
+  <!-- 手機驗證碼：設定 / 輸入 -->
+  <div id="mfa-view" class="center-wrap" hidden>
+    <div class="card login-card" id="mfa-box"></div>
+  </div>
+
+  <!-- 沒有權限 -->
+  <div id="noaccess-view" class="center-wrap" hidden>
+    <div class="card login-card">
+      <h1>尚未開通</h1>
+      <p id="noaccess-msg">這個帳號還沒有任何使用權限，請聯絡管理者開通。</p>
+      <button class="btn big" id="noaccess-logout">登出</button>
+    </div>
   </div>
 
   <!-- 系統畫面 -->
@@ -28,14 +58,19 @@
     <header class="topbar">
       <div class="brand">點貨系統</div>
       <nav id="nav">
-        <a href="#/dashboard" data-route="dashboard">主介面</a>
-        <a href="#/import"    data-route="import">版單匯入</a>
-        <a href="#/dispatch"  data-route="dispatch">出車點貨</a>
-        <a href="#/holds"     data-route="holds">人工清點</a>
-        <a href="#/route"     data-route="route">路線規劃</a>
-        <a href="#/staff"     data-route="staff">人員管理</a>
+        <a href="#/dashboard" data-route="dashboard" data-perm="query">主介面</a>
+        <a href="#/import"    data-route="import"    data-perm="import">版單匯入</a>
+        <a href="#/dispatch"  data-route="dispatch"  data-perm="dispatch">出車點貨</a>
+        <a href="#/holds"     data-route="holds"     data-perm="dispatch">人工清點</a>
+        <a href="#/route"     data-route="route"     data-perm="dispatch">路線規劃</a>
+        <a href="#/billing"   data-route="billing"   data-perm="billing">對帳專區</a>
+        <a href="#/staff"     data-route="staff"     data-perm="admin">人員管理</a>
+        <a href="#/admin"     data-route="admin"     data-perm="admin">權限管理</a>
       </nav>
-      <button id="logout-btn" class="btn ghost">登出</button>
+      <div class="user-box">
+        <a href="#/account" id="user-name" title="帳號安全"></a>
+        <button id="logout-btn" class="btn ghost">登出</button>
+      </div>
     </header>
     <main id="page"></main>
   </div>

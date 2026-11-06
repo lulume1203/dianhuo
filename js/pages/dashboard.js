@@ -1,4 +1,4 @@
-import { db, toast, esc, today } from '../app.js';
+import { db, toast, esc, today, showName, can } from '../app.js';
 import { downloadDriversExcel } from '../export.js';
 
 const LS_QUERIER = 'dianhuo.querier';
@@ -127,7 +127,7 @@ async function loadDay() {
 
   try {
     shipments = await fetchAll(() => db.from('shipments')
-      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
+      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
       .eq('work_date', date)
       .order('id'));
   } catch (e) {
@@ -241,10 +241,10 @@ function shipmentTable(list, sameDay) {
         ${list.map((s, i) => `
           <tr data-i="${i}">
             ${sameDay ? '' : `<td>${esc(s.work_date)}</td>`}
-            <td>${esc(cname(s.carrier_id))}</td>
+            <td><span class="carrier-tag c-${esc(cname(s.carrier_id))}">${esc(cname(s.carrier_id))}</span></td>
             <td class="mono">${esc(s.waybill_no)}</td>
-            <td>${esc(s.sender)}<br><small class="muted">${esc(s.origin_station)}</small></td>
-            <td>${esc(s.receiver)}<br><small class="muted">${esc(s.address)}</small>${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
+            <td>${esc(showName(s.sender))}<br><small class="muted">${esc(s.origin_station)}</small></td>
+            <td>${esc(showName(s.receiver))}<br><small class="muted">${esc(s.address)}</small>${s.remark ? `<br><span class="remark">📝 ${esc(s.remark)}</span>` : ''}</td>
             <td>${payCell(s)}</td>
             <td class="center">${s.pieces}${s.dispatched_pieces && s.dispatched_pieces < s.pieces ? `<br><small class="warn-text">已出 ${s.dispatched_pieces}</small>` : ''}</td>
             <td>${badge(s.status)}</td>
@@ -300,14 +300,14 @@ async function loadDrivers(date) {
               <td>${v.cod ? `<span class="cod">${money(v.cod)}</span> <small class="muted">（${v.codRows} 筆）</small>` : ''}</td>
               <td class="center">${v.missing ? `<span class="error">${v.missing}</span>` : ''}</td>
               <td class="nowrap">
-                <button class="btn small dl-one" data-id="${v.id}" data-name="${esc(n)}">下載 Excel</button>
-                <a class="btn small" href="#/route?date=${date}&driver=${v.id}">路線</a>
+                ${can('dispatch') ? `<button class="btn small dl-one" data-id="${v.id}" data-name="${esc(n)}">下載 Excel</button>
+                <a class="btn small" href="#/route?date=${date}&driver=${v.id}">路線</a>` : ''}
               </td>
             </tr>`).join('')}
         </tbody>
       </table>
     </div>
-    ${list.length > 1 ? `<button class="btn" id="dl-all" style="margin-top:12px">全部司機下載（一人一頁）</button>` : ''}`;
+    ${list.length > 1 && can('dispatch') ? `<button class="btn" id="dl-all" style="margin-top:12px">全部司機下載（一人一頁）</button>` : ''}`;
 
   const dl = async (drivers, btn) => {
     btn.disabled = true;
@@ -337,12 +337,19 @@ async function search() {
   const code = kw.toUpperCase();
 
   let q = db.from('shipments')
-    .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
+    .select('id, carrier_id, work_date, waybill_no, barcodes, origin_station, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
     .order('work_date', { ascending: false })
     .limit(100);
 
+  // 超級管理者可以用電話查詢（電話欄位一般帳號讀不到，所以透過資料庫函式）
+  let phoneIds = [];
+  if (can('admin') && /^[\d-]{4,}$/.test(kw)) {
+    const { data: ids } = await db.rpc('search_by_phone', { q: kw });
+    phoneIds = (ids || []).map(x => (typeof x === 'object' ? Object.values(x)[0] : x)).filter(Number.isFinite);
+  }
+
   q = codeLike
-    ? q.or(`waybill_no.ilike.%${code}%,barcodes.cs.{${code}},receiver_phone.ilike.%${kw}%`)
+    ? q.or(`waybill_no.ilike.%${code}%,barcodes.cs.{${code}}${phoneIds.length ? `,id.in.(${phoneIds.join(',')})` : ''}`)
     : q.or(`sender.ilike.%${kw}%,receiver.ilike.%${kw}%,address.ilike.%${kw}%`);
 
   box.innerHTML = `<div class="card muted">查詢中…</div>`;
@@ -356,7 +363,7 @@ async function search() {
   }
 
   // 單號完全相符：直接打開
-  const exact = codeLike ? data.filter(s => s.waybill_no === code) : [];
+  const exact = codeLike ? data.filter(s => s.waybill_no === code || s.waybill_no.replace(/-/g, '') === code.replace(/-/g, '') || (s.barcodes || []).includes(code)) : [];
 
   box.innerHTML = `
     <div class="card">
@@ -398,6 +405,13 @@ async function openDetail(s, log) {
   ]);
 
   const prev = logs.data || [];
+
+  // 電話：只有超級管理者能取得
+  let phone = '';
+  if (can('admin')) {
+    const { data: ph } = await db.rpc('get_receiver_phones', { ids: [s.id] });
+    phone = ph?.[0]?.receiver_phone || '';
+  }
   let queryNote = '';
   if (log) {
     const querier = Number(document.getElementById('q-who')?.value) || null;
@@ -420,7 +434,7 @@ async function openDetail(s, log) {
     <div class="modal-box wide">
       <div class="row between">
         <div>
-          <span class="carrier-tag">${esc(cname)}</span>
+          <span class="carrier-tag c-${esc(cname)}">${esc(cname)}</span>
           <span class="big-no" style="margin-left:8px">${esc(s.waybill_no)}</span>
         </div>
         ${badge(s.status)}
@@ -428,10 +442,12 @@ async function openDetail(s, log) {
       ${queryNote}
 
       <dl class="detail">
+        <dt>快遞公司</dt><dd><span class="carrier-big c-${esc(cname)}">${esc(cname)}</span></dd>
         <dt>到貨日</dt><dd>${esc(s.work_date)}</dd>
         <dt>發送站</dt><dd>${esc(s.origin_station)}</dd>
-        <dt>寄件人</dt><dd>${esc(s.sender)}</dd>
-        <dt>收件人</dt><dd>${esc(s.receiver)}${s.receiver_phone ? `　${esc(s.receiver_phone)}` : ''}</dd>
+        <dt>寄件人</dt><dd>${esc(showName(s.sender))}</dd>
+        <dt>收件人</dt><dd>${esc(showName(s.receiver))}</dd>
+        ${phone ? `<dt>電話</dt><dd>${esc(phone)}</dd>` : ''}
         <dt>地址</dt><dd>${esc(s.address)}</dd>
         <dt>件數</dt><dd>${s.pieces} 件${s.dispatched_pieces ? `（已出車 ${s.dispatched_pieces} 件）` : ''}</dd>
         <dt>付款</dt><dd>${payCell(s) || '-'}</dd>
@@ -448,7 +464,7 @@ async function openDetail(s, log) {
               <td><b>${esc(d.dispatch_batches?.driver?.name)}</b></td>
               <td>${esc(d.dispatch_batches?.scanner?.name)}</td>
               <td class="center">${d.actual_pieces}${d.system_pieces ? ` / ${d.system_pieces}` : ''}</td>
-              <td><button class="btn small cancel-disp" data-id="${d.id}">取消出車</button></td>
+              <td>${can('dispatch') ? `<button class="btn small cancel-disp" data-id="${d.id}">取消出車</button>` : ''}</td>
             </tr>`).join('')}
           </tbody>
         </table>` : `<p class="muted">還沒有出車</p>`}
@@ -463,7 +479,7 @@ async function openDetail(s, log) {
               <td>${esc(h.reason)}</td>
               <td>${h.arrived_pieces ? `到 ${h.arrived_pieces} 件 ` : ''}${esc(h.note)}</td>
               <td>${esc(h.staff?.name)}</td>
-              <td><button class="btn small cancel-hold" data-id="${h.id}">取消留倉</button></td>
+              <td>${can('dispatch') ? `<button class="btn small cancel-hold" data-id="${h.id}">取消留倉</button>` : ''}</td>
             </tr>`).join('')}
           </tbody>
         </table>` : ''}
@@ -491,7 +507,7 @@ async function openDetail(s, log) {
     if (error) { toast('取消失敗：' + error.message, 'error'); return; }
     toast('已取消', 'ok');
     const { data: fresh } = await db.from('shipments')
-      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, receiver_phone, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
+      .select('id, carrier_id, work_date, waybill_no, origin_station, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark')
       .eq('id', s.id).single();
     close();
     loadDay();

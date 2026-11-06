@@ -1,4 +1,4 @@
-import { db, toast, esc, today } from '../app.js';
+import { db, toast, esc, today, showName } from '../app.js';
 
 const LOOKBACK_DAYS = 14;
 const LS_DRAFT = 'dianhuo.holds.draft';
@@ -180,11 +180,11 @@ function renderList() {
   tbody.innerHTML = items.length ? items.map((it, i) => `
     <tr class="${it.notFound ? 'row-error' : it.status === '配送中' ? 'row-warn' : ''}">
       <td><input type="checkbox" class="h-chk" data-i="${i}" ${it.checked ? 'checked' : ''}></td>
-      <td>${esc(it.carrier)}</td>
+      <td>${it.carrier ? `<span class="carrier-tag c-${esc(it.carrier)}">${esc(it.carrier)}</span>` : ''}</td>
       <td class="mono">${esc(it.waybill_no)}
         ${it.notFound ? '<br><small class="error">版單查無此號</small>' : ''}
         ${it.work_date && it.work_date !== today() ? `<br><small class="muted">${esc(it.work_date)} 版單</small>` : ''}</td>
-      <td>${esc(it.receiver)}<br><small class="muted">${esc(it.address)}</small></td>
+      <td>${esc(showName(it.receiver))}<br><small class="muted">${esc(it.address)}</small></td>
       <td class="center">${it.pieces ?? '-'}</td>
       <td>${it.status ? `<span class="badge st-${esc(it.status)}">${esc(it.status)}</span>` : ''}</td>
       <td>
@@ -276,9 +276,9 @@ async function loadCurrent() {
             return `
               <tr>
                 <td>${esc(s.work_date)}${days >= 3 ? `<br><small class="error">已 ${days} 天</small>` : ''}</td>
-                <td>${esc(s.carriers?.name)}</td>
+                <td><span class="carrier-tag c-${esc(s.carriers?.name)}">${esc(s.carriers?.name)}</span></td>
                 <td class="mono">${esc(s.waybill_no)}</td>
-                <td>${esc(s.receiver)}<br><small class="muted">${esc(s.address)}</small></td>
+                <td>${esc(showName(s.receiver))}<br><small class="muted">${esc(s.address)}</small></td>
                 <td class="center">${s.pieces}</td>
                 <td><b>${esc(h.reason)}</b>${h.arrived_pieces != null ? `<br><small>到 ${h.arrived_pieces} 件</small>` : ''}${h.note ? `<br><small>${esc(h.note)}</small>` : ''}</td>
                 <td>${h.created_at ? `${dateOf(h.created_at)}<br><small class="muted">${esc(h.staff?.name)}</small>` : ''}</td>
