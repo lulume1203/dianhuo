@@ -161,14 +161,30 @@ export async function renderDashboard(page) {
 
   // 左側小標籤：點了捲到該區，捲動時自動亮起目前位置
   const rail = page.querySelector('.dash-rail');
-  rail.querySelectorAll('button').forEach(b => b.addEventListener('click', () =>
-    document.getElementById(b.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
-  railObserver = new IntersectionObserver(entries => {
-    entries.filter(e => e.isIntersecting).forEach(e => {
-      rail.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.target === e.target.id));
-    });
-  }, { rootMargin: '-40% 0px -55% 0px' });
-  page.querySelectorAll('.dash-sec').forEach(s => railObserver.observe(s));
+  const setActive = id => rail.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.target === id));
+  let clickLock = 0;
+  rail.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    setActive(b.dataset.target);
+    clickLock = Date.now() + 900;          // 捲動動畫中先不要改，避免跳來跳去
+    document.getElementById(b.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  const onScroll = () => {
+    if (Date.now() < clickLock) return;
+    const secs = [...document.querySelectorAll('.dash-sec')];
+    if (!secs.length) return;
+    // 捲到最底：一定是最後一區（最後一區比較短，捲不到上方）
+    if (window.scrollY > 0 && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+      setActive(secs[secs.length - 1].id);
+      return;
+    }
+    const line = (document.querySelector('.site-header')?.offsetHeight || 120) + 80;
+    let cur = secs[0].id;
+    for (const s of secs) if (s.getBoundingClientRect().top <= line) cur = s.id;
+    setActive(cur);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  railObserver = { disconnect: () => window.removeEventListener('scroll', onScroll) };
+  onScroll();
 
   // 查詢人下拉
   const { data: staff } = await db.from('staff').select('id, name, is_scanner').eq('active', true).order('name');
