@@ -342,6 +342,11 @@ async function boot(session) {
 
   document.querySelectorAll('#nav a').forEach(a => { a.hidden = !can(a.dataset.perm); });
   document.getElementById('user-name').textContent = p.display_name || accountName(p.email);
+  // 這次登入的日期時間
+  const t = session.user.last_sign_in_at ? new Date(session.user.last_sign_in_at) : new Date();
+  const d = t.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const hm = t.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false });
+  document.getElementById('login-time').textContent = `${d} ${hm} 登入`;
   show('app-view');
   route();
 }

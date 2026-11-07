@@ -9,16 +9,20 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
-    font-src 'self' data:;
+    font-src 'self' data: https://fonts.gstatic.com;
     connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com;
     worker-src 'self' blob: https://cdn.jsdelivr.net;
     frame-src https://challenges.cloudflare.com;
     object-src 'none';
     base-uri 'none';
     form-action 'self';">
-  <title>點貨系統</title>
+  <title>寬豐點貨系統</title>
+  <!-- 霞鶩文楷 TC：開源楷體（SIL OFL 授權）；英文、數字用 Arial -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,7 +30,7 @@
   <!-- 登入 -->
   <div id="login-view" class="center-wrap" hidden>
     <form id="login-form" class="card login-card">
-      <h1>點貨系統</h1>
+      <h1 class="login-title">寬豐點貨系統</h1>
       <label>帳號
         <input type="text" id="login-email" required autocomplete="username" autocapitalize="off" spellcheck="false">
       </label>
@@ -55,9 +59,20 @@
 
   <!-- 系統畫面 -->
   <div id="app-view" hidden>
-    <header class="topbar">
-      <div class="brand">點貨系統</div>
-      <nav id="nav">
+    <header class="site-header">
+      <!-- 上層：系統名稱、登入者 -->
+      <div class="brand-bar">
+        <div class="brand">寬豐點貨系統</div>
+        <div class="user-box">
+          <div class="user-info">
+            <a href="#/account" id="user-name" title="帳號安全"></a>
+            <span id="login-time"></span>
+          </div>
+          <button id="logout-btn" class="btn ghost">登出</button>
+        </div>
+      </div>
+      <!-- 下層：功能選單 -->
+      <nav id="nav" class="nav-bar">
         <a href="#/dashboard" data-route="dashboard" data-perm="query">主介面</a>
         <a href="#/import"    data-route="import"    data-perm="import">版單匯入</a>
         <a href="#/dispatch"  data-route="dispatch"  data-perm="dispatch">出車點貨</a>
@@ -67,10 +82,6 @@
         <a href="#/staff"     data-route="staff"     data-perm="admin">人員管理</a>
         <a href="#/admin"     data-route="admin"     data-perm="admin">權限管理</a>
       </nav>
-      <div class="user-box">
-        <a href="#/account" id="user-name" title="帳號安全"></a>
-        <button id="logout-btn" class="btn ghost">登出</button>
-      </div>
     </header>
     <main id="page"></main>
   </div>
