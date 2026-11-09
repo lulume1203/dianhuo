@@ -1,11 +1,11 @@
 /* =====================================================
    寬豐點貨系統 樣式
    主色：寶石藍＋深海水藍；點綴：香檳金
-   字型：中文「霞鶩文楷 TC」（開源楷體），英文數字 Arial
+   字型：中文微軟正黑體（Mac／手機自動用各自的黑體），英文數字 Arial
    字放大、對比加強，長輩看得清楚
    ===================================================== */
 :root {
-  --font: Arial, "LXGW WenKai TC", "標楷體", "DFKai-SB", "BiauKai", serif;
+  --font: Arial, "Microsoft JhengHei", "微軟正黑體", "PingFang TC", "Noto Sans TC", "Heiti TC", sans-serif;
 
   --bg: #f4f2ec;           /* 象牙白底 */
   --card: #ffffff;
@@ -66,7 +66,7 @@ h4 { font-size: 19px; }
 .brand {
   font-size: 30px;
   font-weight: 700;
-  letter-spacing: .28em;
+  letter-spacing: .18em;
   padding-left: 14px;
   border-left: 4px solid var(--gold);
   line-height: 1.2;
@@ -639,20 +639,79 @@ p.remark { margin: 4px 0; }
 .pod-item { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 15px; display: flex; flex-direction: column; gap: 6px; }
 .pod-item img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; }
 
-/* ---------- 前台公開查件 ---------- */
-.track-main { max-width: 680px; margin: 0 auto; padding: 24px 16px 60px; }
-.track-card h1 { margin: 0 0 12px; color: var(--primary-d); letter-spacing: .12em; }
-.track-card label { display: block; font-weight: 700; margin-bottom: 8px; }
-.t-tip { margin: 10px 0 0; font-size: 15px; }
-.t-item .big-no { margin: 0; font-size: 24px; }
+/* ---------- 前台公開包裹查詢：電腦上一個畫面看完 ---------- */
+body.track-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.track-page .site-header { position: static; }
+.track-page .brand-bar { padding: 10px 28px; }
+.track-page .brand { font-size: 26px; }
+
+.tk-main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 430px minmax(0, 1fr);
+  gap: 18px;
+}
+.tk-main .card { margin: 0; min-height: 0; overflow-y: auto; }
+
+.tk-left h1 { margin: 0; font-size: 28px; color: var(--primary-d); letter-spacing: .15em; }
+.tk-hint { margin: 2px 0 10px; color: var(--muted); font-size: 16px; }
+.tk-inputs { display: flex; flex-direction: column; gap: 7px; }
+.tk-no {
+  font-family: Arial, var(--font) !important;
+  font-size: 20px !important;
+  padding: 7px 12px !important;
+  letter-spacing: .03em;
+}
+.tk-no:first-child { border-color: var(--primary); }
+.tk-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 12px; }
+.tk-actions .btn { padding: 10px; font-size: 19px; }
+
+.tk-list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.tk-list-title { font-size: 15px; color: var(--muted); font-weight: 700; }
+.tk-link {
+  font: inherit;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--primary);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+.tk-link .mono { font-size: 18px; font-weight: 700; }
+.tk-link:hover { background: var(--primary-tint); }
+.tk-link.active { background: var(--primary-tint); box-shadow: 0 0 0 2px var(--primary); }
+.tk-link.bad { border-left-color: var(--danger); }
+.tk-link-st { font-size: 15px; font-weight: 700; padding: 1px 10px; border-radius: 999px; background: #e4e8ec; white-space: nowrap; }
+.tk-link-st.t-done    { background: var(--ok); color: #fff; }
+.tk-link-st.t-out     { background: var(--primary); color: #fff; }
+.tk-link-st.t-partial { background: var(--partial); color: #1a1a1a; }
+.tk-link-st.t-held    { background: var(--held); color: #fff; }
+.tk-link.bad .tk-link-st { background: var(--danger-bg); color: var(--danger); }
+
+.tk-right { display: flex; flex-direction: column; }
+.tk-empty { margin: auto; text-align: center; color: var(--muted); font-size: 18px; }
+.tk-empty-icon { font-size: 64px; opacity: .6; }
+.tk-detail h2 { margin: 0 0 10px; font-size: 26px; color: var(--primary-d); }
+.tk-detail ul { margin: 8px 0; padding-left: 22px; }
+.tk-detail .big-no { margin: 0; font-size: 26px; }
 .t-status {
-  margin: 16px 0 6px;
-  padding: 14px;
+  margin: 18px 0 8px;
+  padding: 18px;
   border-radius: 10px;
   text-align: center;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .15em;
   background: #e4e8ec;
   color: var(--text);
 }
@@ -661,9 +720,27 @@ p.remark { margin: 4px 0; }
 .t-status.t-partial { background: var(--partial); color: #1a1a1a; }
 .t-status.t-held    { background: var(--held); color: #fff; }
 .t-status.t-wait    { background: #e4e8ec; color: var(--text); }
-.t-photo-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--primary-tint); font-weight: 700; }
-.t-notfound h2, .t-contact-card h2 { margin: 0 0 10px; font-size: 24px; color: var(--primary-d); }
-.t-notfound ul { margin: 8px 0; padding-left: 22px; }
-.t-contact-card { border-top: 5px solid var(--gold); }
-.t-company { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
-.t-tel { font-family: Arial, var(--font); font-size: 24px; font-weight: 700; color: var(--primary); }
+.tk-detail .detail { font-size: 20px; }
+.tk-call { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--primary-tint); font-weight: 700; font-size: 18px; }
+.tk-tel { font-family: Arial, var(--font); font-weight: 700; color: var(--primary); white-space: nowrap; }
+
+.tk-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  padding: 10px 16px;
+  background: #fff;
+  border-top: 1px solid var(--line);
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* 手機、小螢幕：上下排列，可以捲動 */
+@media (max-width: 860px), (max-height: 640px) {
+  body.track-page { height: auto; overflow: auto; }
+  .tk-main { grid-template-columns: minmax(0, 1fr); }
+  .tk-main .card { overflow: visible; }
+  .tk-right { min-height: 260px; }
+  .t-status { font-size: 28px; padding: 14px; }
+}

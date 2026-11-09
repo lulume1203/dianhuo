@@ -8,41 +8,58 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' data: https://fonts.gstatic.com;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self' data:;
     img-src 'self' data:;
     connect-src https://*.supabase.co https://cdn.jsdelivr.net;
     object-src 'none';
     base-uri 'none';
     form-action 'self';">
-  <title>寬豐 貨件查詢</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+  <title>寬豐 包裹查詢</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="track-page">
   <header class="site-header">
     <div class="brand-bar">
-      <div class="brand">寬豐 貨件查詢</div>
+      <div class="brand">寬豐 包裹查詢</div>
     </div>
   </header>
 
-  <main class="track-main">
-    <form id="t-form" class="card track-card">
-      <h1>查詢您的貨件</h1>
-      <label for="t-no">請輸入單號（託運單上的號碼）</label>
-      <div class="deliver-search">
-        <input id="t-no" class="scan-input" inputmode="text" autocomplete="off" maxlength="30" placeholder="例如 410-0043468">
-        <button class="btn primary big" type="submit" id="t-go">查詢</button>
+  <main class="tk-main">
+    <!-- 左：輸入單號、查詢結果清單 -->
+    <section class="card tk-left">
+      <form id="t-form" autocomplete="off">
+        <h1>包裹查詢</h1>
+        <p class="tk-hint">請輸入託運單號，一次最多 5 筆</p>
+        <div class="tk-inputs">
+          <input class="tk-no" maxlength="30" inputmode="text" placeholder="單號 1" aria-label="單號 1">
+          <input class="tk-no" maxlength="30" inputmode="text" placeholder="單號 2（選填）" aria-label="單號 2">
+          <input class="tk-no" maxlength="30" inputmode="text" placeholder="單號 3（選填）" aria-label="單號 3">
+          <input class="tk-no" maxlength="30" inputmode="text" placeholder="單號 4（選填）" aria-label="單號 4">
+          <input class="tk-no" maxlength="30" inputmode="text" placeholder="單號 5（選填）" aria-label="單號 5">
+        </div>
+        <div class="tk-actions">
+          <button type="button" class="btn big" id="t-clear">清除重填</button>
+          <button type="submit" class="btn primary big" id="t-go">確認送出</button>
+        </div>
+      </form>
+      <div id="t-list" class="tk-list" aria-live="polite"></div>
+    </section>
+
+    <!-- 右：單筆狀態 -->
+    <section class="card tk-right" id="t-detail" aria-live="polite">
+      <div class="tk-empty">
+        <div class="tk-empty-icon">📦</div>
+        <p>在左邊輸入單號後按「確認送出」，<br>點選查詢結果，這裡會顯示包裹狀態。</p>
+        <p class="muted">只會顯示包裹狀態，不會顯示寄件人、收件人等個人資料。</p>
       </div>
-      <p class="muted t-tip">只會顯示貨件狀態，不會顯示寄件人、收件人等個人資料。</p>
-    </form>
-
-    <div id="t-result" aria-live="polite"></div>
-
-    <div id="t-contact"></div>
+    </section>
   </main>
+
+  <footer class="tk-footer">
+    <span>如有任何疑問，歡迎來電洽詢：<a class="tk-tel" id="t-phone" href="tel:033704948">03-3704948</a></span>
+    <span>＊資料保留時間僅為三個月，您將無法查詢三個月之前的資料。</span>
+  </footer>
 
   <script type="module" src="js/track.js"></script>
 </body>

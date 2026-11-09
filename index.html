@@ -9,9 +9,9 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com https://challenges.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https://*.supabase.co https://*.googleapis.com https://*.gstatic.com;
-    font-src 'self' data: https://fonts.gstatic.com;
+    font-src 'self' data:;
     connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com;
     worker-src 'self' blob: https://cdn.jsdelivr.net;
     frame-src https://challenges.cloudflare.com;
@@ -19,10 +19,6 @@
     base-uri 'none';
     form-action 'self';">
   <title>寬豐點貨系統</title>
-  <!-- 霞鶩文楷 TC：開源楷體（SIL OFL 授權）；英文、數字用 Arial -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
