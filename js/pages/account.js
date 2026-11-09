@@ -6,6 +6,7 @@ export async function renderAccount(page) {
   const list = [
     p.is_admin && '超級管理者', (p.is_admin || p.can_query) && '查件', (p.is_admin || p.can_dispatch) && '點貨',
     (p.is_admin || p.can_import) && '版單匯入', (p.is_admin || p.can_billing) && '對帳',
+    (p.is_admin || p.can_deliver || p.can_dispatch) && '拍照銷單',
   ].filter(Boolean);
 
   page.innerHTML = `

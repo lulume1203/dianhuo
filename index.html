@@ -8,9 +8,9 @@
   <!-- 只允許載入指定來源的程式，降低被植入惡意程式的風險 -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com https://challenges.cloudflare.com;
+    script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com https://challenges.cloudflare.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
+    img-src 'self' data: blob: https://*.supabase.co https://*.googleapis.com https://*.gstatic.com;
     font-src 'self' data: https://fonts.gstatic.com;
     connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com https://maps.googleapis.com;
     worker-src 'self' blob: https://cdn.jsdelivr.net;
@@ -78,6 +78,7 @@
         <a href="#/dispatch"  data-route="dispatch"  data-perm="dispatch">出車點貨</a>
         <a href="#/holds"     data-route="holds"     data-perm="dispatch">人工清點</a>
         <a href="#/route"     data-route="route"     data-perm="dispatch">路線規劃</a>
+        <a href="#/deliver"   data-route="deliver"   data-perm="deliver">拍照銷單</a>
         <a href="#/billing"   data-route="billing"   data-perm="billing">對帳專區</a>
         <a href="#/staff"     data-route="staff"     data-perm="admin">人員管理</a>
         <a href="#/admin"     data-route="admin"     data-perm="admin">權限管理</a>

@@ -260,6 +260,7 @@ p.remark { margin: 4px 0; }
 }
 .lamp-ok      { background: var(--ok); }
 .lamp-held    { background: var(--held); }
+.lamp-done    { background: var(--sea); box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px var(--sea); }
 .lamp-missing { background: var(--danger); }
 .lamp-partial { background: var(--partial); animation: lamp-blink 1.1s ease-in-out infinite; }
 @keyframes lamp-blink {
@@ -365,7 +366,7 @@ p.remark { margin: 4px 0; }
 .cc-nums b { font-family: Arial, var(--font); font-size: 34px; line-height: 1.1; color: var(--primary-d); }
 .cc-nums em { font-style: normal; font-size: 15px; color: var(--muted); }
 /* 三種狀態並排一行：上面燈號＋名稱，下面件數 */
-.cc-status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cc-status { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .cc-stat {
   font: inherit;
   display: flex;
@@ -380,7 +381,7 @@ p.remark { margin: 4px 0; }
   color: var(--text);
   cursor: pointer;
 }
-.cc-stat span { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 5px; font-size: 14px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.cc-stat span { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .cc-stat b { font-family: Arial, var(--font); font-size: 22px; line-height: 1.2; }
 .cc-stat em { font-style: normal; font-size: 13px; color: var(--muted); }
 .cc-stat .lamp { width: 11px; height: 11px; }
@@ -604,3 +605,65 @@ p.remark { margin: 4px 0; }
   .driver-grid  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .intel-nums b { font-size: 32px; }
 }
+
+/* ---------- 拍照銷單（手機優先） ---------- */
+.deliver-wrap { max-width: 640px; margin: 0 auto; }
+.step-label { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; margin-bottom: 10px; }
+.step-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--primary); color: #fff; font-family: Arial, var(--font); font-size: 17px;
+}
+.deliver-search { display: flex; gap: 8px; }
+.deliver-search .scan-input { flex: 1; min-width: 0; font-size: 26px !important; }
+.dv-scan-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.dv-scan-row .btn { width: 100%; padding: 12px 8px; font-size: 18px; text-align: center; }
+.dv-scan-row .btn:only-child { grid-column: 1 / -1; }
+.dv-video-box { margin-top: 12px; text-align: center; }
+.dv-video-box video { width: 100%; max-height: 50vh; border-radius: 10px; background: #000; outline: 4px solid var(--gold); outline-offset: -40px; }
+.dv-video-hint { color: var(--muted); margin: 6px 0; }
+.dv-ship .big-no { margin-top: 10px; }
+.dv-tip { margin: 0 0 10px; font-size: 16px; }
+.dv-camera { display: block; width: 100%; text-align: center; font-size: 24px; padding: 18px; }
+.dv-img { width: 100%; border-radius: 10px; margin-top: 12px; border: 1px solid var(--line); }
+.dv-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dv-note { display: flex; align-items: center; gap: 8px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 17px; }
+.dv-note:has(input:checked) { border-color: var(--primary); background: var(--primary-tint); font-weight: 700; }
+.dv-note input { width: 20px; height: 20px; accent-color: var(--primary); }
+#dv-note-other { width: 100%; margin-top: 8px; }
+.dv-submit { width: 100%; margin-top: 18px; font-size: 24px; padding: 16px; background: var(--ok); border-color: var(--ok); }
+.dv-submit:hover { background: #24653f; }
+
+/* 詳細資料裡的簽收照片 */
+.pod-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.pod-item { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 15px; display: flex; flex-direction: column; gap: 6px; }
+.pod-item img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; }
+
+/* ---------- 前台公開查件 ---------- */
+.track-main { max-width: 680px; margin: 0 auto; padding: 24px 16px 60px; }
+.track-card h1 { margin: 0 0 12px; color: var(--primary-d); letter-spacing: .12em; }
+.track-card label { display: block; font-weight: 700; margin-bottom: 8px; }
+.t-tip { margin: 10px 0 0; font-size: 15px; }
+.t-item .big-no { margin: 0; font-size: 24px; }
+.t-status {
+  margin: 16px 0 6px;
+  padding: 14px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  background: #e4e8ec;
+  color: var(--text);
+}
+.t-status.t-done    { background: var(--ok); color: #fff; }
+.t-status.t-out     { background: var(--primary); color: #fff; }
+.t-status.t-partial { background: var(--partial); color: #1a1a1a; }
+.t-status.t-held    { background: var(--held); color: #fff; }
+.t-status.t-wait    { background: #e4e8ec; color: var(--text); }
+.t-photo-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--primary-tint); font-weight: 700; }
+.t-notfound h2, .t-contact-card h2 { margin: 0 0 10px; font-size: 24px; color: var(--primary-d); }
+.t-notfound ul { margin: 8px 0; padding-left: 22px; }
+.t-contact-card { border-top: 5px solid var(--gold); }
+.t-company { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+.t-tel { font-family: Arial, var(--font); font-size: 24px; font-weight: 700; color: var(--primary); }

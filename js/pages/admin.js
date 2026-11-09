@@ -4,6 +4,7 @@ const PERMS = [
   ['can_query',    '查件',       '主介面查詢、今日概況'],
   ['can_dispatch', '點貨',       '出車點貨、人工清點、路線、司機清單下載'],
   ['can_import',   '版單匯入',   '上傳各家版單'],
+  ['can_deliver',  '銷單',       '拍照銷單（司機只開這個，只看得到銷單頁）'],
   ['can_billing',  '對帳',       '來速捷對帳專區、請款 Excel（需手機驗證碼）'],
   ['is_admin',     '超級管理者', '全部功能、看收件人電話與完整姓名、帳號權限管理（需手機驗證碼）'],
 ];
@@ -55,7 +56,7 @@ export async function renderAdmin(page) {
             ${PERMS.map(([, label, tip]) => `<th class="center" title="${esc(tip)}">${label}</th>`).join('')}
             <th></th>
           </tr></thead>
-          <tbody id="perm-list"><tr><td colspan="9" class="muted">載入中…</td></tr></tbody>
+          <tbody id="perm-list"><tr><td colspan="10" class="muted">載入中…</td></tr></tbody>
         </table>
       </div>
       <ul class="muted legend">
@@ -65,11 +66,25 @@ export async function renderAdmin(page) {
     </div>
 
     <div class="card">
+      <h3>前台查件：聯絡資訊</h3>
+      <p class="muted">客人在前台查不到單號、或想索取簽收照片時，會看到這裡的資訊。前台網址：<a id="track-link" target="_blank" rel="noopener"></a></p>
+      <div class="form-grid">
+        <label>公司名稱 <input id="ct-company" maxlength="30"></label>
+        <label>聯絡電話 <input id="ct-phone" maxlength="30" placeholder="例如 03-1234567"></label>
+        <label>LINE ID <input id="ct-line" maxlength="40" placeholder="選填"></label>
+        <label>服務時間 <input id="ct-hours" maxlength="40" placeholder="例如 週一至週六 8:00–18:00"></label>
+      </div>
+      <label style="display:block;margin-top:8px">補充說明 <input id="ct-note" maxlength="100" style="width:100%"></label>
+      <button class="btn primary" id="ct-save" style="margin-top:12px">儲存聯絡資訊</button>
+    </div>
+
+    <div class="card">
       <h3>個資清除</h3>
       <p>超過保留天數的版單，會把寄件人、收件人姓名改成「王○○」，刪除電話、詳細地址（只留到行政區）、備註，並刪除查詢紀錄。單號、件數、金額會保留，對帳不受影響。</p>
       <div class="row">
-        <label>保留 <input type="number" id="purge-days" value="365" min="30" style="width:90px"> 天</label>
-        <button class="btn danger" id="purge-btn">清除更早的個資</button>
+        <label>版單保留 <input type="number" id="purge-days" value="365" min="30" style="width:90px"> 天</label>
+        <label>簽收照片保留 <input type="number" id="purge-photo-days" value="90" min="30" style="width:90px"> 天</label>
+        <button class="btn danger" id="purge-btn">清除過期資料</button>
       </div>
       <p class="muted">建議每個月執行一次。清除後無法復原。</p>
     </div>`;
@@ -78,7 +93,28 @@ export async function renderAdmin(page) {
   document.getElementById('nu-gen').addEventListener('click', () => { document.getElementById('nu-pw').value = tempPassword(); });
   document.getElementById('nu-save').addEventListener('click', createUser);
   document.getElementById('purge-btn').addEventListener('click', purge);
+  document.getElementById('ct-save').addEventListener('click', saveContact);
+  const link = new URL('track.html', location.href.split('#')[0]).href;
+  Object.assign(document.getElementById('track-link'), { href: link, textContent: link });
+  loadContact();
   loadList();
+}
+
+const CT_FIELDS = ['company', 'phone', 'line', 'hours', 'note'];
+
+async function loadContact() {
+  const { data } = await db.from('app_settings').select('value').eq('key', 'public_contact').maybeSingle();
+  const v = data?.value || {};
+  CT_FIELDS.forEach(k => { document.getElementById('ct-' + k).value = v[k] || ''; });
+}
+
+async function saveContact() {
+  const value = {};
+  CT_FIELDS.forEach(k => { value[k] = document.getElementById('ct-' + k).value.trim(); });
+  if (!value.phone && !value.line) { toast('請至少填電話或 LINE，客人才聯絡得到', 'warn'); return; }
+  const { error } = await db.from('app_settings').upsert({ key: 'public_contact', value, updated_at: new Date().toISOString() });
+  if (error) { toast('儲存失敗：' + rpcError(error), 'error'); return; }
+  toast('已儲存，前台馬上生效', 'ok');
 }
 
 async function createUser() {
@@ -109,7 +145,7 @@ async function createUser() {
 async function loadList() {
   const tbody = document.getElementById('perm-list');
   const { data, error } = await db.from('profiles').select('*').order('created_at');
-  if (error) { tbody.innerHTML = `<tr><td colspan="9" class="error">讀取失敗：${esc(error.message)}</td></tr>`; return; }
+  if (error) { tbody.innerHTML = `<tr><td colspan="10" class="error">讀取失敗：${esc(error.message)}</td></tr>`; return; }
 
   tbody.innerHTML = data.map(p => {
     const me = p.id === profile?.id;
@@ -159,9 +195,18 @@ async function loadList() {
 
 async function purge() {
   const days = parseInt(document.getElementById('purge-days').value, 10);
-  if (!(days >= 30)) { toast('至少要保留 30 天', 'warn'); return; }
-  if (!confirm(`確定清除 ${days} 天以前的個資？清除後無法復原。`)) return;
+  const pdays = parseInt(document.getElementById('purge-photo-days').value, 10);
+  if (!(days >= 30) || !(pdays >= 30)) { toast('至少要保留 30 天', 'warn'); return; }
+  if (!confirm(`確定清除？\n・${days} 天以前版單的個資\n・${pdays} 天以前的簽收照片\n清除後無法復原。`)) return;
+
   const { data, error } = await db.rpc('purge_old_personal_data', { keep_days: days });
   if (error) { toast('清除失敗：' + rpcError(error), 'error'); return; }
-  toast(`已清除 ${data} 筆版單的個資`, 'ok');
+
+  // 簽收照片：先刪紀錄拿到檔案路徑，再刪照片檔
+  const { data: paths, error: e2 } = await db.rpc('purge_old_photos', { keep_days: pdays });
+  if (e2) { toast('照片清除失敗：' + rpcError(e2), 'error'); return; }
+  for (let i = 0; i < (paths || []).length; i += 100) {
+    await db.storage.from('pod').remove(paths.slice(i, i + 100));
+  }
+  toast(`已清除 ${data} 筆版單的個資、${(paths || []).length} 張簽收照片`, 'ok');
 }

@@ -48,19 +48,20 @@ function payCell(s) {
 function piecesOf(s) {
   const need = s.pieces || 0;
   const disp = Math.min(s.dispatched_pieces || 0, need);
-  let out = 0, held = 0;
-  if (s.status === '配送中' || s.status === '已送達') out = need;
+  let out = 0, held = 0, done = 0;
+  if (s.status === '已送達') done = need;
+  else if (s.status === '配送中') out = need;
   else if (s.status === '部分出車') out = disp;
   else if (s.status === '留倉') { out = disp; held = need - disp; }
-  const missing = Math.max(0, need - out - held);
-  return { need, out, held, missing, arrived: out + held };
+  const missing = Math.max(0, need - out - held - done);
+  return { need, out, held, done, missing, arrived: out + held + done };
 }
 
 function summarize(list) {
-  const t = { rows: list.length, need: 0, out: 0, held: 0, missing: 0, arrived: 0, partial: 0 };
+  const t = { rows: list.length, need: 0, out: 0, held: 0, done: 0, missing: 0, arrived: 0, partial: 0 };
   for (const s of list) {
     const p = piecesOf(s);
-    t.need += p.need; t.out += p.out; t.held += p.held; t.missing += p.missing; t.arrived += p.arrived;
+    t.need += p.need; t.out += p.out; t.held += p.held; t.done += p.done; t.missing += p.missing; t.arrived += p.arrived;
     if (s.status === '部分出車') t.partial++;
   }
   t.rate = t.need ? Math.round(t.arrived / t.need * 100) : 0;
@@ -125,6 +126,7 @@ export async function renderDashboard(page) {
             <div class="legend-lamps">
               <span><i class="lamp lamp-ok"></i>配送中（全數到齊）</span>
               <span><i class="lamp lamp-partial"></i>配送中，但有部分到貨（仍缺件）</span>
+              <span><i class="lamp lamp-done"></i>已送達（已拍照銷單）</span>
               <span><i class="lamp lamp-held"></i>留倉</span>
               <span><i class="lamp lamp-missing"></i>未到</span>
             </div>
@@ -287,6 +289,7 @@ function renderIntel(date) {
       <div class="intel-status-title">出車狀態</div>
       <div class="intel-pills">
         ${statusPill('out', '配送中', s.out, null, s.partial ? 'lamp-partial' : 'lamp-ok')}
+        ${statusPill('done', '已送達', s.done, null, 'lamp-done')}
         ${statusPill('held', '留倉', s.held, null, 'lamp-held')}
         ${statusPill('missing', '未到', s.missing, null, 'lamp-missing')}
       </div>
@@ -346,6 +349,7 @@ function renderCards(date) {
           </div>
           <div class="cc-status">
             ${statCell('out', '配送中', s.out, c.id, s.partial ? 'lamp-partial' : 'lamp-ok')}
+            ${statCell('done', '已送達', s.done, c.id, 'lamp-done')}
             ${statCell('held', '留倉', s.held, c.id, 'lamp-held')}
             ${statCell('missing', '未到', s.missing, c.id, 'lamp-missing')}
           </div>
@@ -390,6 +394,7 @@ function renderCards(date) {
 const STATUS_FILTERS = [
   ['missing', '未到（含部分到貨缺件）'],
   ['out', '配送中'],
+  ['done', '已送達'],
   ['held', '留倉'],
   ['overdue', `逾期 ${OVERDUE_DAYS} 天以上`],
   ['all', '全部'],
@@ -398,7 +403,8 @@ const STATUS_FILTERS = [
 function matchStatus(s, key) {
   switch (key) {
     case 'missing': return s.status === '待到貨' || s.status === '部分出車';
-    case 'out':     return ['配送中', '部分出車', '已送達'].includes(s.status);
+    case 'out':     return ['配送中', '部分出車'].includes(s.status);
+    case 'done':    return s.status === '已送達';
     case 'held':    return s.status === '留倉';
     default:        return true;
   }
@@ -603,7 +609,7 @@ async function openDetail(s, log) {
 
   const startOfDay = new Date(today() + 'T00:00:00+08:00').toISOString();
 
-  const [disp, holds, logs] = await Promise.all([
+  const [disp, holds, logs, photos] = await Promise.all([
     db.from('dispatch_items')
       .select('id, created_at, actual_pieces, system_pieces, dispatch_batches(work_date, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name))')
       .eq('shipment_id', s.id).order('created_at'),
@@ -614,7 +620,18 @@ async function openDetail(s, log) {
       .select('created_at, staff(name)')
       .eq('waybill_no', s.waybill_no).gte('created_at', startOfDay)
       .order('created_at', { ascending: false }),
+    db.from('delivery_photos')
+      .select('id, path, note, uploader_name, created_at')
+      .eq('shipment_id', s.id).order('created_at'),
   ]);
+
+  // 簽收照片：產生 10 分鐘有效的私人連結
+  const photoRows = photos.data || [];
+  const urls = {};
+  if (photoRows.length) {
+    const { data: signed } = await db.storage.from('pod').createSignedUrls(photoRows.map(p => p.path), 600);
+    (signed || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; });
+  }
 
   const prev = logs.data || [];
 
@@ -682,6 +699,18 @@ async function openDetail(s, log) {
           </tbody>
         </table>` : `<p class="muted">還沒有出車</p>`}
 
+      ${photoRows.length ? `
+        <h4>簽收照片</h4>
+        <div class="pod-list">
+          ${photoRows.map(ph => `
+            <div class="pod-item">
+              ${urls[ph.path] ? `<a href="${esc(urls[ph.path])}" target="_blank" rel="noopener"><img src="${esc(urls[ph.path])}" alt="簽收照片"></a>` : '<div class="muted">照片已刪除</div>'}
+              <div><b>${dateOf(ph.created_at)} ${timeOf(ph.created_at)}</b><br>${esc(ph.uploader_name)}　${esc(ph.note)}</div>
+              ${can('dispatch') ? `<button class="btn small cancel-pod" data-id="${ph.id}">取消銷單</button>` : ''}
+            </div>`).join('')}
+        </div>
+        <p class="muted">照片連結 10 分鐘內有效。客戶來電索取時，請先核對寄件人或收件人姓名。</p>` : ''}
+
       ${holdRows.length ? `
         <h4>留倉紀錄</h4>
         <table class="tbl">
@@ -727,5 +756,16 @@ async function openDetail(s, log) {
     undo('dispatch_items', b.dataset.id, `確定取消 ${s.waybill_no} 這次出車？`)));
   m.querySelectorAll('.cancel-hold').forEach(b => b.addEventListener('click', () =>
     undo('holds', b.dataset.id, `確定取消 ${s.waybill_no} 的留倉紀錄？`)));
+  m.querySelectorAll('.cancel-pod').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`確定取消 ${s.waybill_no} 的銷單？照片會一起刪除。`)) return;
+    const { data: path, error } = await db.rpc('undo_delivery', { p_photo: Number(b.dataset.id) });
+    if (error) { toast('取消失敗：' + error.message, 'error'); return; }
+    if (path) await db.storage.from('pod').remove([path]);
+    toast('已取消銷單', 'ok');
+    const { data: fresh } = await db.from('shipments').select(SELECT).eq('id', s.id).single();
+    close();
+    loadDay();
+    if (fresh) openDetail(fresh, false);
+  }));
   m.onclick = e => { if (e.target === m) close(); };
 }

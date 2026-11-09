@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' data: https://fonts.gstatic.com;
+    img-src 'self' data:;
+    connect-src https://*.supabase.co https://cdn.jsdelivr.net;
+    object-src 'none';
+    base-uri 'none';
+    form-action 'self';">
+  <title>寬豐 貨件查詢</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="track-page">
+  <header class="site-header">
+    <div class="brand-bar">
+      <div class="brand">寬豐 貨件查詢</div>
+    </div>
+  </header>
+
+  <main class="track-main">
+    <form id="t-form" class="card track-card">
+      <h1>查詢您的貨件</h1>
+      <label for="t-no">請輸入單號（託運單上的號碼）</label>
+      <div class="deliver-search">
+        <input id="t-no" class="scan-input" inputmode="text" autocomplete="off" maxlength="30" placeholder="例如 410-0043468">
+        <button class="btn primary big" type="submit" id="t-go">查詢</button>
+      </div>
+      <p class="muted t-tip">只會顯示貨件狀態，不會顯示寄件人、收件人等個人資料。</p>
+    </form>
+
+    <div id="t-result" aria-live="polite"></div>
+
+    <div id="t-contact"></div>
+  </main>
+
+  <script type="module" src="js/track.js"></script>
+</body>
+</html>
