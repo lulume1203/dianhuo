@@ -384,6 +384,8 @@ function renderCards(date) {
         </div>` : `<div class="ab-ok">目前沒有逾期<br>未完成的貨件</div>`}
     </div>`;
 
+  box.classList.toggle('many', carriers.length >= 4);
+  box.style.setProperty('--n', carriers.length);
   box.innerHTML = cards + alertBoard;
   bindPills(box);
 }

@@ -66,6 +66,12 @@ export async function renderAdmin(page) {
     </div>
 
     <div class="card">
+      <h3>合作快遞公司</h3>
+      <p class="muted">不再合作的公司取消「使用中」，上傳版單和主介面就不會再出現它；以前的資料都會保留，查件、請款照常查得到。建議等它的貨都送完、沒有逾期件再取消。</p>
+      <div id="carrier-list" class="row" style="gap:18px;flex-wrap:wrap">載入中…</div>
+    </div>
+
+    <div class="card">
       <h3>前台查件：聯絡資訊</h3>
       <p class="muted">客人在前台查不到單號、或想索取簽收照片時，會看到這裡的資訊。前台網址：<a id="track-link" target="_blank" rel="noopener"></a></p>
       <div class="form-grid">
@@ -97,7 +103,26 @@ export async function renderAdmin(page) {
   const link = new URL('track.html', location.href.split('#')[0]).href;
   Object.assign(document.getElementById('track-link'), { href: link, textContent: link });
   loadContact();
+  loadCarriers();
   loadList();
+}
+
+async function loadCarriers() {
+  const box = document.getElementById('carrier-list');
+  const { data, error } = await db.from('carriers').select('id, name, active').order('sort_order');
+  if (error) { box.textContent = '讀取失敗：' + rpcError(error); return; }
+  box.innerHTML = data.map(c => `
+    <label class="row" style="gap:8px">
+      <span class="carrier-tag c-${esc(c.name)}">${esc(c.name)}</span>
+      <input type="checkbox" data-id="${c.id}" ${c.active ? 'checked' : ''}> 使用中
+    </label>`).join('');
+  box.querySelectorAll('input').forEach(cb => cb.addEventListener('change', async () => {
+    const name = cb.closest('label').querySelector('.carrier-tag').textContent;
+    if (!cb.checked && !confirm(`確定停用「${name}」？\n停用後上傳版單、主介面不會再出現，舊資料會保留。`)) { cb.checked = true; return; }
+    const { error: e } = await db.from('carriers').update({ active: cb.checked }).eq('id', Number(cb.dataset.id));
+    if (e) { toast('更新失敗：' + rpcError(e), 'error'); cb.checked = !cb.checked; return; }
+    toast(`「${name}」已${cb.checked ? '啟用' : '停用'}`, 'ok');
+  }));
 }
 
 const CT_FIELDS = ['company', 'phone', 'line', 'hours', 'note'];

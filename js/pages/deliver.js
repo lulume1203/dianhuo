@@ -3,6 +3,8 @@ import { db, toast, esc, today } from '../app.js';
 // =====================================================
 // 拍照銷單（手機用）
 // 1. 輸入或掃描單號 → 2. 拍照 → 3. 確認銷單（狀態變成「已送達」）
+// 條碼讀不到、或系統查不到這張單：可以手動輸入單號，照樣拍照銷單，
+// 之後匯入版單時會自動對上（「待對應」）
 // 照片會壓縮，並蓋上日期時間與單號浮水印
 // =====================================================
 
@@ -59,20 +61,29 @@ export async function renderDeliver(page) {
 
       <div class="card">
         <label class="step-label"><span class="step-no">1</span>單號</label>
-        <div class="deliver-search">
-          <input id="dv-no" class="scan-input" inputmode="text" autocomplete="off" placeholder="輸入或掃描單號">
-          <button class="btn primary big" id="dv-find">查詢</button>
-        </div>
         <div class="dv-scan-row">
-          ${canLive ? `<button class="btn big" id="dv-scan">📷 相機掃條碼</button>` : ''}
-          <label class="btn big">🖼 拍條碼照片辨識
-            <input type="file" id="dv-code-photo" accept="image/*" capture="environment" hidden>
-          </label>
+          ${canLive
+            ? `<button class="btn primary big" id="dv-scan">📷 掃條碼</button>`
+            : `<label class="btn primary big">📷 拍條碼辨識
+                 <input type="file" class="dv-code-photo" accept="image/*" capture="environment" hidden>
+               </label>`}
         </div>
         <div id="dv-video-box" class="dv-video-box" hidden>
           <video id="dv-video" playsinline muted></video>
-          <div class="dv-video-hint">把條碼對準框框</div>
+          <div class="dv-video-hint">把條碼放進框框裡，對到會自動讀取</div>
+          <div class="dv-video-more" id="dv-video-more" hidden>
+            <p>掃不到嗎？</p>
+            <label class="btn">拍一張條碼照片辨識
+              <input type="file" class="dv-code-photo" accept="image/*" capture="environment" hidden>
+            </label>
+            <button class="btn" id="dv-to-manual">⌨ 改用手動輸入</button>
+          </div>
           <button class="btn" id="dv-scan-stop">關閉相機</button>
+        </div>
+        <div class="dv-or"><span>或 手動輸入單號</span></div>
+        <div class="deliver-search">
+          <input id="dv-no" class="scan-input" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="輸入單號">
+          <button class="btn primary big" id="dv-find">查詢</button>
         </div>
       </div>
 
@@ -88,7 +99,8 @@ export async function renderDeliver(page) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); find(); } });
   document.getElementById('dv-find').addEventListener('click', find);
   document.getElementById('dv-scan')?.addEventListener('click', startScan);
-  document.getElementById('dv-code-photo').addEventListener('change', decodePhoto);
+  document.querySelectorAll('.dv-code-photo').forEach(f => f.addEventListener('change', decodePhoto));
+  document.getElementById('dv-to-manual').addEventListener('click', () => { stopScan(); input.focus(); });
   getDetector().catch(() => {});   // 先在背景載入辨識引擎，按下去比較快
   document.getElementById('dv-scan-stop').addEventListener('click', stopScan);
   window.addEventListener('hashchange', stopScan, { once: true });
@@ -117,9 +129,12 @@ async function startScan() {
   video.setAttribute('playsinline', '');   // iPhone 需要，不然會跳全螢幕
   await video.play();
   document.getElementById('dv-video-box').hidden = false;
+  document.getElementById('dv-video-more').hidden = true;
+  const started = Date.now();
 
   let busy = false;
   scanTimer = setInterval(async () => {
+    if (Date.now() - started > 6000) { const m = document.getElementById('dv-video-more'); if (m) m.hidden = false; }
     if (busy || video.readyState < 2) return;
     busy = true;
     try {
@@ -148,10 +163,12 @@ async function decodePhoto(e) {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const codes = await detector.detect(bmp);
     if (codes.length) { gotCode(codes[0].rawValue); return; }
-    toast('照片裡找不到條碼，請靠近一點、對準條碼再拍一次', 'warn');
+    toast('照片裡找不到條碼，請再拍一次，或直接手動輸入單號', 'warn');
   } catch {
-    toast('辨識失敗，請再拍一次或手動輸入', 'error');
+    toast('辨識失敗，請再拍一次，或直接手動輸入單號', 'error');
   }
+  stopScan();
+  document.getElementById('dv-no').focus();
 }
 
 function stopScan() {
@@ -180,7 +197,19 @@ async function find() {
     .limit(5);
   if (error) { box.innerHTML = `<div class="card error">查詢失敗：${esc(error.message)}</div>`; return; }
   if (!data.length) {
-    box.innerHTML = `<div class="card error-msg msg">查不到 ${esc(code)}，請確認單號是否正確。</div>`;
+    box.innerHTML = `
+      <div class="card dv-notfound">
+        <p class="msg warn-msg">系統查不到這個單號</p>
+        <div class="big-no">${esc(code)}</div>
+        <p>請先對一下貨上的單號，<b>每個數字都一樣</b>嗎？打錯了就在上面改，再按「查詢」。</p>
+        <p class="muted">單號正確、只是版單還沒匯入，可以先拍照銷單。之後匯入版單時，系統會自動對上、改成「已送達」。</p>
+        <button class="btn big" id="dv-force">單號正確，仍要拍照銷單</button>
+      </div>`;
+    document.getElementById('dv-force').addEventListener('click', () => {
+      current = { id: null, waybill_no: code, unmatched: true };
+      photoBlob = null;
+      renderShipment();
+    });
     return;
   }
   current = data[0];
@@ -194,7 +223,12 @@ function renderShipment() {
   const done = s.status === '已送達';
   const short = s.status === '部分出車' ? s.pieces - (s.dispatched_pieces || 0) : 0;
 
-  box.innerHTML = `
+  const head = s.unmatched ? `
+    <div class="card dv-ship">
+      <div class="row between"><span class="badge st-待到貨">系統查無此號</span></div>
+      <div class="big-no">${esc(s.waybill_no)}</div>
+      <p class="msg warn-msg">這張會先記成「待對應」，匯入版單後自動對上。</p>
+    </div>` : `
     <div class="card dv-ship">
       <div class="row between">
         <span class="carrier-tag c-${esc(s.carriers?.name)}">${esc(s.carriers?.name)}</span>
@@ -211,7 +245,9 @@ function renderShipment() {
       </dl>
       ${done ? `<p class="msg warn-msg">這張單已經銷單過了，再拍一次會多存一張照片。</p>` : ''}
       ${s.status === '待到貨' ? `<p class="msg warn-msg">系統顯示這張單還沒出車，請確認是不是刷錯號碼。</p>` : ''}
-    </div>
+    </div>`;
+
+  box.innerHTML = head + `
 
     <div class="card">
       <label class="step-label"><span class="step-no">2</span>拍簽收照片</label>
@@ -293,14 +329,16 @@ async function submit() {
   btn.disabled = true;
   btn.textContent = '上傳中…';
 
-  const path = `${today()}/${current.id}-${Date.now()}.jpg`;
+  const path = `${today()}/${current.id ?? 'x'}-${Date.now()}.jpg`;
   const { error: e1 } = await db.storage.from('pod').upload(path, photoBlob, { contentType: 'image/jpeg', upsert: false });
   if (e1) {
     toast('照片上傳失敗：' + e1.message, 'error');
     btn.disabled = false; btn.textContent = '✔ 確認銷單';
     return;
   }
-  const { error: e2 } = await db.rpc('mark_delivered', { p_shipment: current.id, p_path: path, p_note: note });
+  const { error: e2 } = current.unmatched
+    ? await db.rpc('deliver_unmatched', { p_no: current.waybill_no, p_path: path, p_note: note })
+    : await db.rpc('mark_delivered', { p_shipment: current.id, p_path: path, p_note: note });
   if (e2) {
     toast('銷單失敗：' + e2.message, 'error');
     btn.disabled = false; btn.textContent = '✔ 確認銷單';
@@ -308,7 +346,7 @@ async function submit() {
   }
 
   if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-  toast(`${current.waybill_no} 已銷單`, 'ok');
+  toast(current.unmatched ? `${current.waybill_no} 已拍照存證（待對應）` : `${current.waybill_no} 已銷單`, 'ok');
   current = null;
   photoBlob = null;
   document.getElementById('dv-ship').innerHTML = '';
@@ -324,7 +362,7 @@ async function loadToday() {
   const { data: { user } } = await db.auth.getUser();
   const start = new Date(today() + 'T00:00:00+08:00').toISOString();
   const { data, error } = await db.from('delivery_photos')
-    .select('id, waybill_no, note, created_at')
+    .select('id, shipment_id, waybill_no, note, created_at')
     .eq('uploaded_by', user?.id || '')
     .gte('created_at', start)
     .order('created_at', { ascending: false });
@@ -335,6 +373,6 @@ async function loadToday() {
     <p><b>${data.length}</b> 筆</p>
     <table class="tbl">
       <thead><tr><th>時間</th><th>單號</th><th>簽收方式</th></tr></thead>
-      <tbody>${data.map(d => `<tr><td>${timeOf(d.created_at)}</td><td class="mono">${esc(d.waybill_no)}</td><td>${esc(d.note)}</td></tr>`).join('')}</tbody>
+      <tbody>${data.map(d => `<tr><td>${timeOf(d.created_at)}</td><td class="mono">${esc(d.waybill_no)}${d.shipment_id ? '' : ' <span class="badge st-待到貨">待對應</span>'}</td><td>${esc(d.note)}</td></tr>`).join('')}</tbody>
     </table>`;
 }

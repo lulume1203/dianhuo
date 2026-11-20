@@ -229,10 +229,86 @@ const laisuje = {
   parse: rows => (detectLaisujeBoard(rows) ? parseLaisujeBoard(rows) : parseLaisuje(rows)),
 };
 
+// ---------- 泓珊：「站所轉運板單」，表頭在第 18 列左右 ----------
+// 欄位：項次 託運單號 寄件人 收件人 件數 代收款 送件費 金額 班次 收件人地址；最後一列「總計」
+function detectHongshan(rows) {
+  const top = rows.slice(0, 40);
+  return top.some(r => r.map(clean).some(x => x.includes('泓珊'))) ||
+    top.some(r => { const c = r.map(clean); return c.includes('託運單號') && c.includes('收件人地址'); });
+}
+
+function parseHongshan(rows) {
+  const out = [];
+  const warnings = [];
+  let sourceDate = null;
+  let station = null;
+  let C = null;
+  let declaredTotal = 0;
+  let hasTotal = false;
+
+  for (const r of rows) {
+    const cells = r.map(clean);
+    const line = cells.join(' ');
+
+    // 「板單日期：2026/11/18」「發貨站所：275泓珊快遞」
+    const d = line.match(/板單日期[:：]\s*(\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2})/);
+    if (d && !sourceDate) sourceDate = toDate(d[1]);
+    const st = line.match(/發貨站所[:：]\s*(\S+)/);
+    if (st) station = st[1].replace(/^\d+/, '') || st[1];
+
+    // 表頭（每一頁可能重複出現）
+    if (cells.includes('託運單號')) {
+      const col = name => cells.indexOf(name);
+      C = {
+        no: col('託運單號'), sender: col('寄件人'), receiver: col('收件人'),
+        pieces: col('件數'), collect: col('代收款'), amount: col('金額'),
+        address: col('收件人地址'), remark: col('備註'),
+      };
+      continue;
+    }
+    if (!C) continue;
+
+    if (cells.includes('總計')) {
+      hasTotal = true;
+      declaredTotal += C.pieces >= 0 ? toInt(r[C.pieces]) : 0;
+      continue;
+    }
+
+    const no = noSpace(r[C.no]);
+    if (!/^\d{8,20}$/.test(no)) continue;
+    const g = k => (C[k] >= 0 ? clean(r[C[k]]) : '');
+
+    const amount = toNum(g('amount'));    // 金額：到付運費
+    const collect = toNum(g('collect'));  // 代收款：代收貨款
+    const s = blank();
+    s.waybill_no = no;
+    s.origin_station = station;
+    s.sender = g('sender') || null;
+    s.receiver = g('receiver') || null;
+    s.address = g('address').replace(/^\d{3,6}(?=\D)/, '') || null;   // 去掉開頭的郵遞區號
+    s.pieces = Math.max(1, toInt(g('pieces')));
+    s.remark = g('remark') || null;
+    s.is_cod = amount > 0;
+    s.cod_amount = amount > 0 ? amount : null;
+    s.collect_amount = collect > 0 ? collect : null;
+    s.payment_type = amount > 0 ? '到付' : null;
+    s.barcodes = [no];
+    out.push(s);
+  }
+
+  if (!C) warnings.push('找不到「託運單號」表頭，檔案格式可能不同');
+  if (hasTotal) {
+    const sum = out.reduce((a, s) => a + s.pieces, 0);
+    if (sum !== declaredTotal) warnings.push(`檔案寫總計 ${declaredTotal} 件，但讀到 ${sum} 件，請確認檔案是否完整`);
+  }
+  return { rows: out, sourceDate, warnings };
+}
+
 // ---------- 註冊表 ----------
 export const PARSERS = {
   '龍鐽':  { detect: detectLongjian, parse: parseLongjian },
   '來速捷': laisuje,
+  '泓珊':  { detect: detectHongshan, parse: parseHongshan },
 };
 
 export function detectCarrier(rows) {
