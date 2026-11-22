@@ -52,30 +52,33 @@ export async function renderBilling(page) {
   page.innerHTML = `
     <h2>${CARRIER}對帳專區</h2>
 
-    <div class="card row">
-      <label>日期 <input type="date" id="b-date" value="${t}"></label>
-      <label class="chk"><input type="checkbox" id="b-done" checked> 只列出已出車的</label>
-      <span class="muted">｜</span>
-      <label>每件送件費 <input type="number" id="b-rate" min="0" style="width:90px"> 元</label>
-      <button class="btn small" id="b-rate-save">儲存單價</button>
-    </div>
-
-    <div class="card">
-      <div class="stats" id="b-stats"></div>
-      <div class="tbl-wrap"><div id="b-list" class="muted">載入中…</div></div>
-      <p class="muted">送件費預設＝件數 × 單價。按「編輯」可以改送件費、加價和說明；送件費清空就恢復預設。</p>
-    </div>
-
-    <div class="card">
-      <h3>下載請款 Excel</h3>
-      <div class="row">
-        <label>期間 <input type="date" id="x-from" value="${monthStart}"></label>
-        <span>～</span>
-        <input type="date" id="x-to" value="${t}">
-        <label>請款日期 <input type="date" id="x-date" value="${t}"></label>
-        <button class="btn primary" id="x-go">下載</button>
+    <div class="split fill wide-left">
+      <div class="card">
+        <h3 class="sub">每日對帳</h3>
+        <div class="row">
+          <label>日期 <input type="date" id="b-date" value="${t}"></label>
+          <label class="chk"><input type="checkbox" id="b-done" checked> 只列出已出車的</label>
+          <span class="muted">｜</span>
+          <label>每件送件費 <input type="number" id="b-rate" min="0" style="width:90px"> 元</label>
+          <button class="btn small" id="b-rate-save">儲存單價</button>
+        </div>
+        <div class="stats" id="b-stats"></div>
+        <div class="scroll"><div id="b-list" class="muted">載入中…</div></div>
+        <p class="muted" style="margin:8px 0 0">送件費預設＝件數 × 單價。按「編輯」可以改送件費、加價和說明；送件費清空就恢復預設。</p>
       </div>
-      <p class="muted">依發送站分成多個工作表，最後一頁是各站合計與總運費。A4 橫印，一頁放不下會自動接下一頁，表頭會重複並加上頁碼。Excel 是跟同業對帳用的，姓名不遮罩，請小心保管。</p>
+
+      <div class="card">
+        <h3 class="sub">下載請款 Excel</h3>
+        <div class="fields">
+          <label>期間（從）<input type="date" id="x-from" value="${monthStart}"></label>
+          <label>期間（到）<input type="date" id="x-to" value="${t}"></label>
+          <label>請款日期<input type="date" id="x-date" value="${t}"></label>
+        </div>
+        <button class="btn primary big" id="x-go" style="margin-top:14px;width:100%">下載</button>
+        <p class="muted" style="margin-top:14px">依發送站分成多個工作表，最後一頁是各站合計與總運費。</p>
+        <p class="muted">A4 橫印，一頁放不下會自動接下一頁，表頭會重複並加上頁碼。</p>
+        <p class="msg warn-msg" style="font-weight:400">Excel 是跟同業對帳用的，姓名不遮罩，請小心保管。</p>
+      </div>
     </div>`;
 
   const { data: c } = await db.from('carriers').select('id').eq('name', CARRIER).maybeSingle();

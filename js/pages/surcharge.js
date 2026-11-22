@@ -23,40 +23,52 @@ export async function renderSurcharge(el) {
   el.innerHTML = `
     <h2>加價區域</h2>
 
-    <div class="card">
-      <div class="row" style="gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <label>縣市<br><select id="sc-city"><option value="">全部縣市</option></select></label>
-        <label>找地點<br><input id="sc-q" placeholder="例如 三峽、大埔路、醫院" style="width:240px"></label>
-        <label>顯示<br>
-          <select id="sc-show">
-            <option value="">全部</option>
-            <option value="review">只看「待確認」</option>
-            <option value="nodist">只看「未分區」</option>
-          </select>
-        </label>
-        <span class="muted" id="sc-count"></span>
-        <span style="flex:1"></span>
-        ${editable ? `<button class="btn" id="sc-add">＋ 新增一筆</button>` : ''}
-        <button class="btn primary" id="sc-xlsx">下載 Excel</button>
+    <div class="split fill wide-left">
+      <div class="card">
+        <h3 class="sub">加價區查詢</h3>
+        <div class="fields fields-row">
+          <label>縣市<select id="sc-city"><option value="">全部縣市</option></select></label>
+          <label class="grow">找地點<input id="sc-q" placeholder="例如 三峽、大埔路、醫院"></label>
+          <label>顯示
+            <select id="sc-show">
+              <option value="">全部</option>
+              <option value="review">只看「待確認」</option>
+              <option value="nodist">只看「未分區」</option>
+            </select>
+          </label>
+          ${editable ? `<button class="btn" id="sc-add">＋ 新增一筆</button>` : ''}
+        </div>
+        <p class="muted" id="sc-count" style="margin:8px 0 4px"></p>
+        <div class="scroll" id="sc-list">載入中…</div>
       </div>
-      <p class="muted" style="margin:10px 0 0">「下載 Excel」會依上面選的縣市下載（選「全部縣市」就是整本），待確認、資料來源這些內部欄位不會印出來。</p>
+
+      <div class="card">
+        <h3 class="sub">加價表下載</h3>
+        <div class="fields">
+          <label>下載範圍<select id="sc-xcity"><option value="">全部縣市（整本）</option></select></label>
+        </div>
+        <button class="btn primary big" id="sc-xlsx" style="margin-top:12px;width:100%">下載 Excel</button>
+        <p class="muted" style="margin:10px 0 0">依「縣市 → 行政區 → 金額」排好，A4 直印。待確認、資料來源這些內部欄位不會印出來。</p>
+
+        <div id="sc-summary" style="margin-top:18px"></div>
+
+        ${editable ? `
+        <details id="sc-notes-box" style="margin-top:16px">
+          <summary><b>Excel 標題與注意事項</b></summary>
+          <label style="display:block;margin-top:10px">標題<input id="sc-title" style="width:100%"></label>
+          <label style="display:block;margin-top:10px">注意事項（一行一條）
+            <textarea id="sc-notes" rows="6" style="width:100%"></textarea></label>
+          <button class="btn" id="sc-notes-save" style="margin-top:8px">儲存</button>
+        </details>` : ''}
+      </div>
     </div>
 
-    <div class="card" id="sc-summary"></div>
-
-    ${editable ? `
-    <details class="card" id="sc-notes-box">
-      <summary><b>Excel 標題與注意事項</b>（印在表的最上面和最下面）</summary>
-      <label style="display:block;margin-top:12px">標題<br><input id="sc-title" style="width:100%;max-width:480px"></label>
-      <label style="display:block;margin-top:12px">注意事項（一行一條）<br>
-        <textarea id="sc-notes" rows="5" style="width:100%"></textarea></label>
-      <button class="btn" id="sc-notes-save" style="margin-top:8px">儲存</button>
-    </details>` : ''}
-
-    <div id="sc-list">載入中…</div>
     <div id="sc-modal" class="modal" hidden></div>`;
 
-  document.getElementById('sc-city').addEventListener('change', draw);
+  document.getElementById('sc-city').addEventListener('change', () => {
+    document.getElementById('sc-xcity').value = document.getElementById('sc-city').value;   // 下載範圍跟著查詢的縣市
+    draw();
+  });
   document.getElementById('sc-show').addEventListener('change', draw);
   let t;
   document.getElementById('sc-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(draw, 200); });
@@ -127,7 +139,9 @@ function sortRules(list) {
 function fillCities() {
   const sel = document.getElementById('sc-city');
   const cities = [...new Set(rules.map(r => r.city))].sort((a, b) => cityRank(a) - cityRank(b));
-  sel.innerHTML = `<option value="">全部縣市</option>` + cities.map(c => `<option value="${esc(c)}">${esc(CITY_FULL[c] || c)}</option>`).join('');
+  const opts = cities.map(c => `<option value="${esc(c)}">${esc(CITY_FULL[c] || c)}</option>`).join('');
+  sel.innerHTML = `<option value="">全部縣市</option>` + opts;
+  document.getElementById('sc-xcity').innerHTML = `<option value="">全部縣市（整本）</option>` + opts;
 }
 
 function filtered() {
@@ -148,17 +162,18 @@ function draw() {
   const list = filtered();
   const nReview = rules.filter(r => r.review).length;
   const nNoDist = rules.filter(r => !r.district && r.city !== '全台').length;
-  document.getElementById('sc-count').textContent = `共 ${list.length} 筆`;
+  document.getElementById('sc-count').textContent = `找到 ${list.length} 筆`;
   document.getElementById('sc-summary').innerHTML = `
     <div class="sc-stats">
       <div><span>全部</span><b>${rules.length}</b> 筆</div>
       <div class="${nReview ? 'warn' : ''}"><span>待確認</span><b>${nReview}</b> 筆</div>
       <div><span>未分區</span><b>${nNoDist}</b> 筆</div>
     </div>
-    ${nReview ? `<p class="muted" style="margin:8px 0 0">「待確認」是舊版和媽媽版金額不一樣、或同一頁寫了兩次的地方，目前先用媽媽版的金額。確認後按「確認無誤」，黃色標記就會消失。<br>「未分區」是還沒填行政區的地點，Excel 會放在該縣市最後面的「其他地點」。</p>` : ''}`;
+    <p class="muted" style="margin:8px 0 0;font-size:15px">「待確認」：舊版和媽媽版金額不一樣、或同一頁寫了兩次，目前先用媽媽版的金額。確認後按「確認無誤」。</p>
+    <p class="muted" style="margin:4px 0 0;font-size:15px">「未分區」：還沒填行政區的地點，Excel 會放在該縣市最後的「其他地點」。</p>`;
 
   const box = document.getElementById('sc-list');
-  if (!list.length) { box.innerHTML = `<div class="card muted">沒有符合的資料。</div>`; return; }
+  if (!list.length) { box.innerHTML = `<p class="muted">沒有符合的資料。</p>`; return; }
 
   let html = '';
   let city = null;
@@ -166,7 +181,7 @@ function draw() {
     if (r.city !== city) {
       if (city !== null) html += `</tbody></table></div>`;
       city = r.city;
-      html += `<div class="card sc-city"><h3>${esc(CITY_FULL[city] || city)}</h3>
+      html += `<div class="sc-city"><h3>${esc(CITY_FULL[city] || city)}</h3>
         <table class="tbl sc-table"><thead><tr>
           <th style="width:110px">行政區</th><th>地點／路段</th><th style="width:100px">金額</th><th>備註</th>
           <th style="width:${editable ? 210 : 120}px"></th></tr></thead><tbody>`;
@@ -326,7 +341,7 @@ function placeText(r) {
 
 async function exportExcel() {
   const btn = document.getElementById('sc-xlsx');
-  const city = document.getElementById('sc-city').value;
+  const city = document.getElementById('sc-xcity').value;
   const list = sortRules(rules.filter(r => (!city || r.city === city) && !(r.kind === '加價' && r.fee == null)));
   if (!list.length) { toast('沒有資料可以下載', 'warn'); return; }
   btn.disabled = true; btn.textContent = '產生中…';

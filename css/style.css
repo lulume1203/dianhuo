@@ -786,3 +786,41 @@ body.track-page { display: flex; flex-direction: column; height: 100vh; overflow
 .sc-form label.row { flex-direction: row; align-items: center; }
 .sc-form label.row input { width: auto; }
 .sc-table th:nth-child(2), .sc-table td:nth-child(2) { width: 30%; }
+
+/* ---------- 左右兩塊版面：整頁盡量不用捲動，右邊清單自己捲 ---------- */
+.split { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, 2.3fr); gap: 16px; margin-bottom: 16px; }
+.split.wide-left { grid-template-columns: minmax(0, 2.6fr) minmax(300px, 1fr); }
+.split > .card { margin: 0; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.split.fill { height: calc(100vh - var(--header-h) - 110px); min-height: 480px; }
+.split.fill > .card { overflow: auto; }
+.split.fill > .card:has(> .scroll) { overflow: hidden; }
+.split .scroll { flex: 1; min-height: 0; overflow: auto; margin-top: 8px; border-top: 1px solid var(--line-soft); }
+.split .scroll .tbl { min-width: 640px; font-size: 17px; }
+.split .scroll thead th { position: sticky; top: 0; z-index: 1; }
+.split .stats { margin: 8px 0 0; }
+.split .stats b { font-size: 28px; }
+h3.sub { font-size: 20px; margin: 0 0 12px; padding-left: 10px; border-left: 4px solid var(--gold); color: var(--primary-d); }
+
+/* 表單欄位：標籤在上、輸入框一樣高 */
+.fields { display: flex; flex-direction: column; gap: 10px; }
+.fields > label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; color: var(--text); }
+.fields input, .fields select { width: 100%; height: 48px; box-sizing: border-box; font-weight: 400; }
+.fields-row { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+.fields-row > label { flex: 0 0 auto; min-width: 150px; }
+.fields-row > label.grow { flex: 1 1 200px; }
+.fields-row > .btn { height: 48px; }
+
+.sc-city + .sc-city { margin-top: 18px; }
+.sc-city h3 { position: sticky; top: 0; background: #fff; z-index: 2; padding-top: 6px; padding-bottom: 6px; margin-bottom: 0 !important; }
+.sc-city .tbl thead th { top: 46px; }
+
+@media (max-width: 1000px) {
+  .split, .split.wide-left { grid-template-columns: 1fr; }
+  .split.fill { height: auto; }
+  .split.fill > .card { overflow: visible; }
+  .split .scroll { max-height: 65vh; }
+}
+.split .scroll th, .split .scroll .btn { white-space: nowrap; }
+.split .sc-stats { flex-wrap: nowrap; gap: 8px; }
+.split .sc-stats > div { min-width: 0; flex: 1; padding: 8px 10px; }
+.split .sc-stats b { font-size: 24px; }

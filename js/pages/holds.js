@@ -47,38 +47,47 @@ export async function renderHolds(page) {
   page.innerHTML = `
     <h2>人工清點（留倉）</h2>
 
-    <div class="card">
-      <div class="row">
-        <label>處理人 <select id="h-who"><option value="">請選擇</option></select></label>
-      </div>
-      <input id="h-input" class="scan-input" style="margin-top:12px" placeholder="刷條碼或輸入單號" autocomplete="off">
-      <p class="muted hint">在倉庫看到沒被帶出門的貨，一件一件刷進來；回到電腦前再一起選原因、存檔。清單會自動保留，不怕關掉。</p>
-    </div>
+    <div class="split fill">
+      <div class="card">
+        <h3 class="sub">刷單</h3>
+        <div class="fields">
+          <label>處理人<select id="h-who"><option value="">請選擇</option></select></label>
+        </div>
+        <input id="h-input" class="scan-input" style="margin-top:12px" placeholder="刷條碼或輸入單號" autocomplete="off">
+        <p class="muted hint">在倉庫看到沒被帶出門的貨，一件一件刷進來；回到電腦前再一起選原因、存檔。清單會自動保留，不怕關掉。</p>
 
-    <div class="card">
-      <div class="row between">
-        <div class="row">
+        <h3 class="sub" style="margin-top:18px">一次設定原因</h3>
+        <div class="fields">
+          <label>原因
+            <select id="h-bulk">
+              <option value="">請選擇原因…</option>
+              ${REASONS.map(r => `<option>${r}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
           <label class="chk"><input type="checkbox" id="h-all"> 全選</label>
-          <select id="h-bulk">
-            <option value="">批次設定原因…</option>
-            ${REASONS.map(r => `<option>${r}</option>`).join('')}
-          </select>
           <button class="btn" id="h-apply">套用到勾選</button>
         </div>
-        <div class="row">
-          <span id="h-count" class="muted"></span>
-          <button class="btn" id="h-clear">清空</button>
-          <button class="btn primary big" id="h-save" disabled>存檔</button>
-        </div>
       </div>
-      <div class="tbl-wrap">
-        <table class="tbl hold-tbl">
-          <thead><tr>
-            <th></th><th>快遞</th><th>單號</th><th>收件人 / 地址</th><th class="center">件數</th>
-            <th>目前狀態</th><th>原因</th><th>補充說明</th><th></th>
-          </tr></thead>
-          <tbody id="h-list"></tbody>
-        </table>
+
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">本次清單 <span id="h-count" class="muted" style="font-size:18px;font-weight:400"></span></h3>
+          <div class="row">
+            <button class="btn" id="h-clear">清空</button>
+            <button class="btn primary big" id="h-save" disabled>存檔</button>
+          </div>
+        </div>
+        <div class="scroll" id="h-scroll">
+          <table class="tbl hold-tbl">
+            <thead><tr>
+              <th></th><th>快遞</th><th>單號</th><th>收件人 / 地址</th><th class="center">件數</th>
+              <th>目前狀態</th><th>原因</th><th>補充說明</th><th></th>
+            </tr></thead>
+            <tbody id="h-list"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -151,11 +160,13 @@ async function onScan(raw) {
       beep(false);
       toast(`${code} 版單查無此號，仍先加入清單`, 'warn');
       items.unshift({ waybill_no: code, notFound: true, reason: '', checked: true });
+      document.getElementById('h-scroll')?.scrollTo(0, 0);
     } else {
       const open = data.filter(s => ['待到貨', '留倉', '部分出車'].includes(s.status));
       const s = open[0] || data[0];
       if (s.status === '配送中') { beep(false); toast(`${s.waybill_no} 系統顯示已出車，請確認貨是不是真的還在倉庫`, 'warn'); }
       else beep(true);
+      document.getElementById('h-scroll')?.scrollTo(0, 0);
       items.unshift({
         shipment_id: s.id, waybill_no: s.waybill_no, barcodes: s.barcodes || [],
         carrier: s.carriers?.name || '', work_date: s.work_date,

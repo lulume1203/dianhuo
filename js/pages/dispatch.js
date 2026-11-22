@@ -99,33 +99,37 @@ export async function renderDispatch(page) {
   page.innerHTML = `
     <h2>出車點貨</h2>
 
-    <div class="card row">
-      <label>刷單人 <select id="d-scanner"><option value="">請選擇</option></select></label>
-      <label>司機 <select id="d-driver"><option value="">請選擇</option></select></label>
-      <span class="muted">${today()}</span>
-    </div>
-
-    <div class="card">
-      <input id="d-input" class="scan-input" placeholder="先選刷單人和司機" autocomplete="off" disabled>
-      <p class="muted hint">刷條碼或手打單號後按 Enter。掃描槍沒反應的話，請把輸入法切到英文。</p>
-    </div>
-
-    <div class="card">
-      <div class="row between">
-        <div class="stats" id="d-stats"></div>
-        <div class="row">
-          <button class="btn" id="d-clear">清空</button>
-          <button class="btn primary big" id="d-save" disabled>存檔</button>
+    <div class="split fill">
+      <div class="card">
+        <h3 class="sub">刷單</h3>
+        <div class="fields">
+          <label>刷單人<select id="d-scanner"><option value="">請選擇</option></select></label>
+          <label>司機<select id="d-driver"><option value="">請選擇</option></select></label>
         </div>
+        <p class="muted" style="margin:10px 0 6px">出車日期　${today()}</p>
+        <input id="d-input" class="scan-input" placeholder="先選刷單人和司機" autocomplete="off" disabled>
+        <p class="muted hint">刷條碼或手打單號後按 Enter。<br>掃描槍沒反應的話，請把輸入法切到英文。</p>
+        <p class="muted hint">一位司機刷完，按右邊的「存檔」，再換下一位司機。</p>
       </div>
-      <div class="tbl-wrap">
-        <table class="tbl dispatch-tbl">
-          <thead><tr>
-            <th>#</th><th>快遞</th><th>單號</th><th>收件人 / 地址</th><th>付款</th>
-            <th class="center">系統件數</th><th class="center">實際出車</th><th></th>
-          </tr></thead>
-          <tbody id="d-list"></tbody>
-        </table>
+
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">本次清單</h3>
+          <div class="row">
+            <button class="btn" id="d-clear">清空</button>
+            <button class="btn primary big" id="d-save" disabled>存檔</button>
+          </div>
+        </div>
+        <div class="stats" id="d-stats"></div>
+        <div class="scroll" id="d-scroll">
+          <table class="tbl dispatch-tbl">
+            <thead><tr>
+              <th>#</th><th>快遞</th><th>單號</th><th>收件人 / 地址</th><th>付款</th>
+              <th class="center">系統件數</th><th class="center">實際出車</th><th></th>
+            </tr></thead>
+            <tbody id="d-list"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -368,6 +372,7 @@ function addFromShipment(s, already, actual) {
 
 function addItem(it) {
   items.unshift(it);   // 新刷的放最上面
+  document.getElementById('d-scroll')?.scrollTo(0, 0);
   saveDraft();
   renderList();
   flashRow(0);
