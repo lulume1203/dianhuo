@@ -1,11 +1,12 @@
 import { db, toast, esc, profile, accountName, passwordProblem } from '../app.js';
 
 const PERMS = [
-  ['can_query',    '查件',       '主介面查詢、今日概況'],
+  ['can_query',    '查件',       '主介面查詢、營運情報'],
   ['can_dispatch', '點貨',       '出車點貨、人工清點、路線、司機清單下載'],
   ['can_import',   '版單匯入',   '上傳各家版單'],
   ['can_deliver',  '銷單',       '拍照銷單（司機只開這個，只看得到銷單頁）'],
   ['can_billing',  '對帳',       '來速捷對帳專區、請款 Excel（需手機驗證碼）'],
+  ['can_surcharge','加價區域',   '查詢、修改加價表，下載加價表 Excel'],
   ['is_admin',     '超級管理者', '全部功能、看收件人電話與完整姓名、帳號權限管理（需手機驗證碼）'],
 ];
 

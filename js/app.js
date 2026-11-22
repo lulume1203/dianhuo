@@ -76,7 +76,7 @@ export const accountName = email => String(email || '').replace(ACCOUNT_DOMAIN, 
 // =====================================================
 // 權限
 // =====================================================
-export const perms = { admin: false, query: false, dispatch: false, import: false, billing: false, deliver: false, any: false };
+export const perms = { admin: false, query: false, dispatch: false, import: false, billing: false, deliver: false, surcharge: false, any: false };
 export let profile = null;
 export const can = p => !!perms[p];
 
@@ -88,7 +88,8 @@ function setPerms(p) {
   perms.import   = a || !!p?.can_import;
   perms.billing  = a || !!p?.can_billing;
   perms.deliver  = a || !!p?.can_deliver || !!p?.can_dispatch;
-  perms.any      = perms.query || perms.dispatch || perms.import || perms.billing;
+  perms.surcharge = a || !!p?.can_surcharge;
+  perms.any      = perms.query || perms.dispatch || perms.import || perms.billing || perms.surcharge;
 }
 
 // =====================================================
@@ -102,7 +103,7 @@ const routes = {
   route:     { fn: renderRoute,     perm: 'dispatch' },
   deliver:   { fn: renderDeliver,   perm: 'deliver' },
   billing:   { fn: renderBilling,   perm: 'billing' },
-  surcharge: { fn: renderSurcharge, perm: 'any' },
+  surcharge: { fn: renderSurcharge, perm: 'surcharge' },
   staff:     { fn: renderStaff,     perm: 'admin' },
   admin:     { fn: renderAdmin,     perm: 'admin' },
   account:   { fn: renderAccount,   perm: null },
@@ -124,8 +125,27 @@ function route() {
   }
   document.querySelectorAll('#nav a').forEach(a =>
     a.classList.toggle('active', a.dataset.route === name));
-  r.fn(document.getElementById('page'));
+  window.scrollTo(0, 0);
+  const done = r.fn(document.getElementById('page'));
+  requestAnimationFrame(fitSplit);
+  Promise.resolve(done).then(() => requestAnimationFrame(fitSplit));
 }
+
+// 左右兩塊的頁面：高度剛好填滿螢幕，清單在區塊裡面捲，整頁不用捲
+export function fitSplit() {
+  document.querySelectorAll('.split.fill').forEach(el => {
+    if (window.innerWidth <= 1000) { el.style.height = ''; return; }
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    // 下面沒有其他區塊時，連頁面底部留白一起算進去，才不會多出一點點卷軸
+    let sib = el.nextElementSibling, more = false;
+    for (; sib; sib = sib.nextElementSibling) if (sib.offsetHeight > 0) { more = true; break; }
+    const main = el.closest('main');
+    const pad = more ? 12 : (parseFloat(getComputedStyle(el).marginBottom) || 0) + (main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0) + 2;
+    el.style.height = Math.max(360, Math.floor(window.innerHeight - top - pad)) + 'px';
+  });
+}
+let fitTimer;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitSplit, 100); });
 
 window.addEventListener('hashchange', route);
 

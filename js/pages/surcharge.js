@@ -1,15 +1,15 @@
 // 加價區域：偏遠／特殊地區加價表
-// 有「對帳」權限的人可以新增、修改、刪除；其他人只能看和下載
+// 有「加價區域」權限的人可以查詢、新增、修改、刪除、下載
 // 下載的 Excel 依「縣市 → 行政區 → 金額」排好，可以直接印給客人
 import { db, toast, esc, today, can } from '../app.js';
 
 const EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 const CITY_ORDER = ['全台', '基隆', '台北', '新北', '桃園', '新竹市', '新竹', '苗栗', '台中', '彰化', '南投', '雲林',
-  '嘉義', '台南', '高雄', '屏東', '宜蘭', '花蓮', '台東', '澎湖', '金門', '馬祖'];
+  '嘉義市', '嘉義', '台南', '高雄', '屏東', '宜蘭', '花蓮', '台東', '澎湖', '金門', '馬祖'];
 const CITY_FULL = {
   全台: '特殊機關／單位（全台適用）', 基隆: '基隆市', 台北: '台北市', 新北: '新北市', 桃園: '桃園市',
   新竹市: '新竹市', 新竹: '新竹縣', 苗栗: '苗栗縣', 台中: '台中市', 彰化: '彰化縣', 南投: '南投縣',
-  雲林: '雲林縣', 嘉義: '嘉義縣市', 台南: '台南市', 高雄: '高雄市', 屏東: '屏東縣', 宜蘭: '宜蘭縣',
+  雲林: '雲林縣', 嘉義市: '嘉義市', 嘉義: '嘉義縣', 台南: '台南市', 高雄: '高雄市', 屏東: '屏東縣', 宜蘭: '宜蘭縣',
   花蓮: '花蓮縣', 台東: '台東縣', 澎湖: '澎湖縣', 金門: '金門縣', 馬祖: '連江縣（馬祖）',
 };
 const KINDS = ['加價', '自取', '不配送'];
@@ -19,7 +19,7 @@ let notesSetting = { title: '偏遠及特殊地區加價表', notes: [] };
 let editable = false;
 
 export async function renderSurcharge(el) {
-  editable = can('billing');
+  editable = can('surcharge');
   el.innerHTML = `
     <h2>加價區域</h2>
 
@@ -353,7 +353,7 @@ async function exportExcel() {
     const wb = new ExcelJS.Workbook();
     wb.creator = '寬豐點貨系統';
     const ws = wb.addWorksheet(city ? (CITY_FULL[city] || city).replace(/[\\/?*[\]:（）()]/g, '').slice(0, 28) : '加價總表', {
-      views: [{ state: 'frozen', ySplit: 0, showGridLines: false }],
+      views: [{ showGridLines: false }],
     });
     ws.columns = [{ width: 14 }, { width: 11 }, { width: 66 }];
     const CAP = 30;   // C 欄一行大約放 30 個中文字
@@ -364,7 +364,7 @@ async function exportExcel() {
       margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.25, footer: 0.3 },
     };
     const upd = today().replace(/-/g, '/');
-    ws.headerFooter.oddFooter = `&L&"${FONT}"&9${notesSetting.title}　更新日期 ${upd}&R&"${FONT}"&9第 &P 頁／共 &N 頁`;
+    ws.headerFooter.oddFooter = `&L&9${notesSetting.title}　更新日期 ${upd}&R&9第 &P 頁／共 &N 頁`;
 
     const f = (size, bold, color) => ({ name: FONT, size, bold: !!bold, color: color ? { argb: color } : undefined });
     let r = 1;
