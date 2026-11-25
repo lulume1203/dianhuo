@@ -91,7 +91,7 @@ function buildSheet(driverName, date, rows) {
 
   const aoa = [
     [`${driverName}　${date}　出車清單`],
-    [`共 ${rows.length} 筆、${pieces} 件${money ? `，到付／代收合計 $${money.toLocaleString()}` : ''}`],
+    [`共 ${rows.length} 筆、${pieces} 件${money ? `，到付／代收合計 $${money.toLocaleString()}` : ''}　（更新時間 ${new Date().toLocaleString('zh-TW', { hour12: false }).slice(0, -3)}）`],
     [],
     cols.map(c => c[0]),
     ...rows.map((r, i) => cols.map(c => c[2](r, i))),

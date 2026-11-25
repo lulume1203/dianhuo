@@ -549,7 +549,11 @@ async function loadDrivers(date) {
       ${can('dispatch_edit') ? `<button class="btn small ${v.dups ? 'warn-btn' : ''} edit-sheet" data-id="${v.id}" data-name="${esc(n)}" style="margin-top:6px">修改出車表</button>` : ''}
     </div>`).join('');
 
-  actions.innerHTML = list.length > 1 && can('dispatch') ? `<button class="btn" id="dl-all">全部司機下載（一人一頁）</button>` : '';
+  const missingAll = list.reduce((a, [, v]) => a + v.missing, 0);
+  actions.innerHTML = `
+    ${(can('dispatch') || can('dispatch_edit')) && list.length ? `<button class="btn ${missingAll ? 'warn-btn' : ''}" id="dl-relink" title="版單晚到時，把「查無此號」的單再跟版單比對一次">🔄 更新出車表${missingAll ? `（查無此號 ${missingAll} 筆）` : ''}</button>` : ''}
+    ${list.length > 1 && can('dispatch') ? `<button class="btn" id="dl-all">全部司機下載（一人一頁）</button>` : ''}
+    <span class="muted" style="font-size:14px">更新時間 ${new Date().toTimeString().slice(0, 5)}</span>`;
 
   const dl = async (drivers, btn) => {
     btn.disabled = true;
@@ -559,6 +563,14 @@ async function loadDrivers(date) {
   };
   box.querySelectorAll('.dl-one').forEach(b => b.addEventListener('click', () =>
     dl([{ id: Number(b.dataset.id), name: b.dataset.name }], b)));
+  document.getElementById('dl-relink')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = '比對中…';
+    const { data: n, error: err } = await db.rpc('relink_dispatch', { p_date: date });
+    if (err) { toast('更新失敗：' + err.message, 'error'); btn.disabled = false; return; }
+    toast(n ? `已對上 ${n} 筆，出車表已更新` : (missingAll ? '還是查不到，版單可能還沒匯入' : '出車表已是最新'), n ? 'ok' : 'warn');
+    loadDrivers(date);
+  });
   document.getElementById('dl-all')?.addEventListener('click', e =>
     dl(list.map(([n, v]) => ({ id: v.id, name: n })), e.target));
   box.querySelectorAll('.edit-sheet').forEach(b => b.addEventListener('click', () =>
