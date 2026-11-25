@@ -12,7 +12,7 @@ export function mergeStops(items) {
   const map = new Map();
   const out = [];
   for (const it of items) {
-    const k = String(it.waybill_no || '').toUpperCase().replace(/\s/g, '');
+    const k = String(it.waybill_no || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const m = map.get(k);
     if (!m) { const c = { ...it, dupCount: 1 }; map.set(k, c); out.push(c); continue; }
     m.dupCount++;

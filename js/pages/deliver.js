@@ -1,5 +1,8 @@
 import { db, toast, esc, today } from '../app.js';
 
+// 比對單號用：只留英文和數字（有沒有「-」都算同一張）
+const keyOf = c => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 // =====================================================
 // 拍照銷單（手機用）
 // 1. 輸入或掃描單號 → 2. 拍照 → 3. 確認銷單（狀態變成「已送達」）
@@ -192,7 +195,7 @@ async function find() {
   const { data, error } = await db.from('shipments')
     .select('id, work_date, waybill_no, barcodes, receiver, address, pieces, dispatched_pieces, status, is_cod, cod_amount, collect_amount, remark, carriers(name)')
     .gte('work_date', addDays(today(), -LOOKBACK_DAYS))
-    .or(`waybill_no.eq.${code},barcodes.cs.{${code}}`)
+    .or(`waybill_key.eq.${keyOf(code)},barcode_keys.cs.{${keyOf(code)}}`)
     .order('work_date', { ascending: false })
     .limit(5);
   if (error) { box.innerHTML = `<div class="card error">查詢失敗：${esc(error.message)}</div>`; return; }

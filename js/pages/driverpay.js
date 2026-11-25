@@ -15,7 +15,7 @@ let audioCtx;
 
 const fmt = n => Number(n || 0).toLocaleString();
 const rateOn = d => { let r = rates[0].rate; for (const x of rates) if (x.from <= d) r = x.rate; return r; };
-const keyOf = s => String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[\s*]/g, '').toUpperCase();
+const keyOf = s => String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).toUpperCase().replace(/[^A-Z0-9]/g, '');   // 有沒有「-」都算同一張
 const amountOf = p => Math.round(Number(p.pieces) * Number(p.rate) + Number(p.adjust || 0));
 
 function beep(ok = true) {

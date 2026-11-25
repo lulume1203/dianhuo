@@ -1,5 +1,8 @@
 import { db, toast, esc, today, showName, can } from '../app.js';
 
+// 比對單號用：只留英文和數字（有沒有「-」都算同一張）
+const keyOf = c => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 // 往回找幾天內的版單（分批到貨、留倉後才出車的單）
 const LOOKBACK_DAYS = 14;
 const LS_DRAFT   = 'dianhuo.dispatch.draft';
@@ -245,7 +248,7 @@ async function onScan(raw) {
   if (busy) { toast('上一筆還在處理，請稍等', 'warn'); return; }
 
   // 已經在清單裡
-  const dup = items.findIndex(it => it.waybill_no === code || (it.barcodes || []).includes(code));
+  const dup = items.findIndex(it => keyOf(it.waybill_no) === keyOf(code) || (it.barcodes || []).some(b => keyOf(b) === keyOf(code)));
   if (dup >= 0) {
     beep(false);
     toast(`${code} 已經在清單第 ${dup + 1} 筆`, 'warn');
@@ -259,7 +262,7 @@ async function onScan(raw) {
       .select('id, work_date, waybill_no, barcodes, sender, receiver, address, pieces, dispatched_pieces, status, payment_type, is_cod, cod_amount, collect_amount, remark, carriers(name)')
       .gte('work_date', addDays(today(), -LOOKBACK_DAYS))
       .lte('work_date', today())
-      .or(`waybill_no.eq.${code},barcodes.cs.{${code}}`)
+      .or(`waybill_key.eq.${keyOf(code)},barcode_keys.cs.{${keyOf(code)}}`)
       .order('work_date', { ascending: false });
 
     if (error) { beep(false); toast('查詢失敗：' + error.message, 'error'); return; }
@@ -268,12 +271,11 @@ async function onScan(raw) {
     if (!data.length) {
       beep(false);
       // 查無此號的單，同一位司機今天已經刷過 → 不能再加
-      const { data: dup } = await db.from('dispatch_items')
-        .select('id, created_at, dispatch_batches!inner(work_date, driver_id)')
-        .eq('waybill_no', code)
+      const { data: todays } = await db.from('dispatch_items')
+        .select('id, waybill_no, created_at, dispatch_batches!inner(work_date, driver_id)')
         .eq('dispatch_batches.work_date', today())
-        .eq('dispatch_batches.driver_id', Number(document.getElementById('d-driver').value))
-        .limit(1);
+        .eq('dispatch_batches.driver_id', Number(document.getElementById('d-driver').value));
+      const dup = (todays || []).filter(x => keyOf(x.waybill_no) === keyOf(code));
       if (dup?.length) {
         await ask({
           title: '⚠ 已經在這位司機的出車表裡',

@@ -1,5 +1,8 @@
 import { db, toast, esc, today, showName } from '../app.js';
 
+// 比對單號用：只留英文和數字（有沒有「-」都算同一張）
+const keyOf = c => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 const LOOKBACK_DAYS = 14;
 const LS_DRAFT = 'dianhuo.holds.draft';
 const LS_WHO   = 'dianhuo.holds.who';
@@ -142,7 +145,7 @@ async function onScan(raw) {
   const code = normalize(raw);
   if (!code) return;
   if (!/^[A-Z0-9-]{4,30}$/.test(code)) { beep(false); toast(`「${raw}」不是有效的單號`, 'error'); return; }
-  if (items.some(it => it.waybill_no === code || (it.barcodes || []).includes(code))) {
+  if (items.some(it => keyOf(it.waybill_no) === keyOf(code) || (it.barcodes || []).some(b => keyOf(b) === keyOf(code)))) {
     beep(false); toast(`${code} 已經在清單裡`, 'warn'); return;
   }
   if (busy) return;
@@ -152,7 +155,7 @@ async function onScan(raw) {
       .select('id, work_date, waybill_no, barcodes, receiver, address, pieces, dispatched_pieces, status, carriers(name)')
       .gte('work_date', addDays(today(), -LOOKBACK_DAYS))
       .lte('work_date', today())
-      .or(`waybill_no.eq.${code},barcodes.cs.{${code}}`)
+      .or(`waybill_key.eq.${keyOf(code)},barcode_keys.cs.{${keyOf(code)}}`)
       .order('work_date', { ascending: false });
     if (error) { beep(false); toast('查詢失敗：' + error.message, 'error'); return; }
 

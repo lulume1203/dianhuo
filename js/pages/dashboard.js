@@ -585,7 +585,7 @@ async function openSheetEditor(date, driverId, driverName) {
   const draw = async () => {
     const items = await load();
     if (!items) return;
-    const key = it => String(it.waybill_no).toUpperCase().replace(/\s/g, '');
+    const key = it => String(it.waybill_no).toUpperCase().replace(/[^A-Z0-9]/g, '');
     const seen = new Map();
     items.forEach(it => seen.set(key(it), (seen.get(key(it)) || 0) + 1));
     const firstOf = new Set();
@@ -689,7 +689,7 @@ async function search() {
   }
 
   q = codeLike
-    ? q.or(`waybill_no.ilike.%${code}%,barcodes.cs.{${code}}${phoneIds.length ? `,id.in.(${phoneIds.join(',')})` : ''}`)
+    ? q.or(`waybill_key.ilike.%${code.replace(/[^A-Z0-9]/g, '')}%,barcode_keys.cs.{${code.replace(/[^A-Z0-9]/g, '')}}${phoneIds.length ? `,id.in.(${phoneIds.join(',')})` : ''}`)
     : q.or(`sender.ilike.%${kw}%,receiver.ilike.%${kw}%,address.ilike.%${kw}%`);
 
   box.innerHTML = `<div class="card muted">查詢中…</div>`;
