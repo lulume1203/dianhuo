@@ -21,10 +21,10 @@ let editable = false;
 export async function renderSurcharge(el) {
   editable = can('surcharge');
   el.innerHTML = `
-    <h2>加價區域</h2>
 
     <div class="split fill wide-left">
       <div class="card">
+        <div class="sc-head">
         <h3 class="sub">加價區查詢</h3>
         <div class="fields fields-row">
           <label>縣市<select id="sc-city"><option value="">全部縣市</option></select></label>
@@ -37,6 +37,7 @@ export async function renderSurcharge(el) {
             </select>
           </label>
           ${editable ? `<button class="btn" id="sc-add">＋ 新增一筆</button>` : ''}
+        </div>
         </div>
         <p class="muted" id="sc-count" style="margin:8px 0 4px"></p>
         <div class="scroll" id="sc-list">載入中…</div>
@@ -186,7 +187,8 @@ function draw() {
           <th style="width:110px">行政區</th><th>地點／路段</th><th style="width:100px">金額</th><th>備註</th>
           <th style="width:${editable ? 210 : 120}px"></th></tr></thead><tbody>`;
     }
-    html += `<tr class="${r.review ? 'sc-review' : ''}" data-id="${r.id}">
+    const who = [r.updated_by, r.updated_at ? r.updated_at.slice(0, 10) : ''].filter(Boolean).join(' ');
+    html += `<tr class="${r.review ? 'sc-review' : ''}" data-id="${r.id}" title="${who ? '最後修改：' + esc(who) : ''}">
       <td>${r.district ? esc(r.district) : (city === '全台' ? '' : '<span class="muted">未分區</span>')}</td>
       <td>${r.place ? esc(r.place) : '<b>全區</b>'}</td>
       <td><span class="sc-fee ${feeClass(r)}">${esc(feeText(r))}</span></td>
@@ -195,7 +197,6 @@ function draw() {
         ${r.review ? `<button class="btn small" data-act="ok">確認無誤</button>` : ''}
         <button class="btn small" data-act="edit">修改</button>
         <button class="btn small danger" data-act="del">刪除</button>` : ''}
-        <div class="sc-meta">${r.updated_by ? esc(r.updated_by) + ' ' : ''}${r.updated_at ? esc(r.updated_at.slice(5, 10).replace('-', '/')) : ''}</div>
       </td></tr>`;
   }
   html += `</tbody></table></div>`;

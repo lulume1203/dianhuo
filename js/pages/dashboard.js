@@ -7,7 +7,8 @@ const OVERDUE_DAYS = 2;                          // 超過幾天沒完成算逾�
 const BACKLOG_DAYS = 14;                         // 明細往前看幾天
 
 let carriers = [];
-let dayRows = [];        // 選定日期的版單
+let dayRows = [];        // 選定日期的版單（不含「不會到」）
+let voided = [];         // 選定日期被登記「改走同業，不會到貨」的（不算應到、未到）
 let backlog = [];        // 前幾天：還沒完成、或在選定日期出車的
 let overdue = [];        // 逾期（以今天為準）
 let filter = { carrierId: null, status: 'missing' };
@@ -31,7 +32,7 @@ function addDays(d, n) { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDat
 function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 const cname = id => carriers.find(c => c.id === id)?.name || '';
 
-const LABEL = { 待到貨: '未到', 部分出車: '部分到貨', 配送中: '配送中', 留倉: '留倉', 已送達: '已送達' };
+const LABEL = { 待到貨: '未到', 部分出車: '部分到貨', 配送中: '配送中', 留倉: '留倉', 已送達: '已送達', 不會到: '不會到貨' };
 function badge(status) {
   return `<span class="badge st-${esc(status)}">${esc(LABEL[status] || status)}</span>`;
 }
@@ -241,7 +242,8 @@ async function loadDay() {
         .gte('work_date', addDays(t, -60)).lte('work_date', addDays(t, -OVERDUE_DAYS)).in('status', OPEN).order('work_date')),
     ]);
 
-    dayRows = day;
+    dayRows = day.filter(s => s.status !== '不會到');
+    voided = day.filter(s => s.status === '不會到');
     overdue = late;
 
     const ids = [...new Set((dispIds.data || []).map(d => d.shipment_id).filter(Boolean))];
@@ -283,7 +285,7 @@ function renderIntel(date) {
         <span>實到 <b>${fmt(s.arrived)}</b> 件</span>
         <span class="rate">到貨率 <b>${s.rate}</b>%</span>
       </div>
-      <div class="intel-sub muted">共 ${fmt(s.rows)} 筆</div>
+      <div class="intel-sub muted">共 ${fmt(s.rows)} 筆${voided.length ? `<br><a href="#" id="intel-void">另 ${voided.length} 筆（${fmt(voided.reduce((a, x) => a + (x.pieces || 0), 0))} 件）改走同業，已扣除</a>` : ''}</div>
     </div>
     <div class="intel-status">
       <div class="intel-status-title">出車狀態</div>
@@ -295,6 +297,10 @@ function renderIntel(date) {
       </div>
     </div>`;
   bindPills(box);
+  document.getElementById('intel-void')?.addEventListener('click', e => {
+    e.preventDefault(); filter = { carrierId: null, status: 'void' }; refreshAll();
+    document.getElementById('sec-detail')?.scrollIntoView({ behavior: 'smooth' });
+  });
 }
 
 function statusPill(key, label, n, carrierId, lamp) {
@@ -399,6 +405,7 @@ const STATUS_FILTERS = [
   ['done', '已送達'],
   ['held', '留倉'],
   ['overdue', `逾期 ${OVERDUE_DAYS} 天以上`],
+  ['void', '不會到貨（已扣除）'],
   ['all', '全部'],
 ];
 
@@ -415,10 +422,11 @@ function matchStatus(s, key) {
 function currentList() {
   let src;
   if (filter.status === 'overdue') src = overdue;
+  else if (filter.status === 'void') src = voided;
   else src = withBacklog ? [...backlog, ...dayRows] : dayRows;
   return src.filter(s =>
     (!filter.carrierId || s.carrier_id === filter.carrierId) &&
-    (filter.status === 'overdue' || matchStatus(s, filter.status)));
+    (filter.status === 'overdue' || filter.status === 'void' || matchStatus(s, filter.status)));
 }
 
 function renderList() {

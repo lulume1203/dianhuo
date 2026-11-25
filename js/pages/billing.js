@@ -50,11 +50,10 @@ export async function renderBilling(page) {
   const monthStart = t.slice(0, 8) + '01';
 
   page.innerHTML = `
-    <h2>${CARRIER}對帳專區</h2>
 
     <div class="split fill wide-left">
       <div class="card">
-        <h3 class="sub">每日對帳</h3>
+        <h3 class="sub">來速捷每日對帳</h3>
         <div class="row">
           <label>日期 <input type="date" id="b-date" value="${t}"></label>
           <label class="chk"><input type="checkbox" id="b-done" checked> 只列出已出車的</label>
@@ -136,6 +135,10 @@ function render() {
 
   box.innerHTML = `
     <table class="tbl bill-tbl">
+      <colgroup>
+        <col style="width:15%"><col style="width:15%"><col style="width:12%"><col style="width:6%"><col style="width:10%">
+        <col style="width:9%"><col style="width:8%"><col style="width:11%"><col style="width:7%"><col style="width:7%">
+      </colgroup>
       <thead><tr>
         <th>單號</th><th>寄件者</th><th>收件者</th><th class="center">件數</th><th>狀態</th>
         <th class="right">送件費</th><th class="right">加價</th><th>說明</th><th class="right">小計</th><th></th>
@@ -174,7 +177,7 @@ function rowHtml(s) {
         <td class="money"><input type="number" id="e-sur" value="${f.sur || ''}" placeholder="0"></td>
         <td><input class="note-input" id="e-note" value="${esc(f.note)}" maxlength="50" placeholder="例如：偏遠、上樓"></td>
         <td class="money">-</td>
-        <td class="nowrap"><button class="btn small primary b-save" data-id="${s.id}">儲存</button> <button class="btn small b-cancel">取消</button></td>
+        <td><div class="edit-ops"><button class="btn small primary b-save" data-id="${s.id}">儲存</button><button class="btn small b-cancel">取消</button></div></td>
       </tr>`;
   }
   return `

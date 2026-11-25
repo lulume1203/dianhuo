@@ -97,7 +97,6 @@ function ask({ title, body, buttons, focus }) {
 // =====================================================
 export async function renderDispatch(page) {
   page.innerHTML = `
-    <h2>出車點貨</h2>
 
     <div class="split fill">
       <div class="card">
@@ -284,7 +283,7 @@ async function onScan(raw) {
     }
 
     // 優先挑還沒出完的單，日期新的優先
-    const open = data.filter(s => ['待到貨', '留倉', '部分出車'].includes(s.status));
+    const open = data.filter(s => ['待到貨', '留倉', '部分出車', '不會到'].includes(s.status));
     const s = open[0] || data[0];
     const already = s.dispatched_pieces || 0;
     const remaining = Math.max(0, s.pieces - already);

@@ -3,7 +3,8 @@ import { db, toast, esc, today, showName } from '../app.js';
 const LOOKBACK_DAYS = 14;
 const LS_DRAFT = 'dianhuo.holds.draft';
 const LS_WHO   = 'dianhuo.holds.who';
-const REASONS = ['貨件未齊', '不在配送範圍內', '已與客戶聯繫另約時間', '待客人自取', '其他'];
+const REASONS = ['貨件未齊', '不在配送範圍內', '已與客戶聯繫另約時間', '待客人自取', '改走同業，不會到貨', '其他'];
+const VOID_REASON = '改走同業，不會到貨';   // 選這個：這張單不算應到、不算未到
 
 let items = [];
 let busy = false;
@@ -45,7 +46,6 @@ function saveDraft() {
 // =====================================================
 export async function renderHolds(page) {
   page.innerHTML = `
-    <h2>人工清點（留倉）</h2>
 
     <div class="split fill">
       <div class="card">
@@ -92,7 +92,7 @@ export async function renderHolds(page) {
     </div>
 
     <div class="card">
-      <h3 style="margin-top:0">目前留倉中</h3>
+      <h3 style="margin-top:0">目前留倉中／不會到貨</h3>
       <div id="h-current" class="muted">載入中…</div>
     </div>`;
 
@@ -162,7 +162,7 @@ async function onScan(raw) {
       items.unshift({ waybill_no: code, notFound: true, reason: '', checked: true });
       document.getElementById('h-scroll')?.scrollTo(0, 0);
     } else {
-      const open = data.filter(s => ['待到貨', '留倉', '部分出車'].includes(s.status));
+      const open = data.filter(s => ['待到貨', '留倉', '部分出車', '不會到'].includes(s.status));
       const s = open[0] || data[0];
       if (s.status === '配送中') { beep(false); toast(`${s.waybill_no} 系統顯示已出車，請確認貨是不是真的還在倉庫`, 'warn'); }
       else beep(true);
@@ -207,6 +207,7 @@ function renderList() {
       <td>
         ${it.reason === '貨件未齊' ? `到 <input type="number" min="0" class="h-arrived" data-i="${i}" value="${esc(it.arrived)}" style="width:60px"> 件${it.pieces ? ` / ${it.pieces}` : ''}` : ''}
         ${it.reason === '其他' ? `<input class="h-note" data-i="${i}" value="${esc(it.note)}" placeholder="請輸入說明">` : ''}
+        ${it.reason === VOID_REASON ? `<input class="h-note" data-i="${i}" value="${esc(it.note || '')}" placeholder="改走哪一家（可不填）">` : ''}
       </td>
       <td><button class="btn small h-del" data-i="${i}">刪除</button></td>
     </tr>`).join('') : `<tr><td colspan="9" class="muted center">還沒有刷任何單號</td></tr>`;
@@ -241,6 +242,9 @@ async function save() {
   const noNote = sel.filter(it => it.reason === '其他' && !it.note.trim());
   if (noNote.length) { toast(`選「其他」的要填說明（${noNote.map(x => x.waybill_no).join('、')}）`, 'warn'); return; }
 
+  const voids = sel.filter(it => it.reason === VOID_REASON);
+  if (voids.length && !confirm(`有 ${voids.length} 筆選「${VOID_REASON}」。\n存檔後這些單不再算在應到、未到件數裡。\n確定嗎？`)) return;
+
   const btn = document.getElementById('h-save');
   btn.disabled = true;
   const { error } = await db.from('holds').insert(sel.map(it => ({
@@ -254,7 +258,7 @@ async function save() {
   })));
   if (error) { toast('存檔失敗：' + error.message, 'error'); btn.disabled = false; return; }
 
-  toast(`已將 ${sel.length} 筆改為留倉`, 'ok');
+  toast(voids.length ? `已存檔：${sel.length - voids.length} 筆留倉、${voids.length} 筆不會到貨` : `已將 ${sel.length} 筆改為留倉`, 'ok');
   items = items.filter(it => !it.checked);
   saveDraft();
   renderList();
@@ -268,7 +272,7 @@ async function loadCurrent() {
   const box = document.getElementById('h-current');
   const { data, error } = await db.from('shipments')
     .select('id, work_date, waybill_no, receiver, address, pieces, carriers(name), holds(reason, arrived_pieces, note, created_at, staff(name))')
-    .eq('status', '留倉')
+    .in('status', ['留倉', '不會到'])
     .order('work_date', { ascending: true })
     .limit(500);
   if (error) { box.innerHTML = `<span class="error">讀取失敗：${esc(error.message)}</span>`; return; }
@@ -276,7 +280,7 @@ async function loadCurrent() {
 
   box.className = '';
   box.innerHTML = `
-    <p class="muted" style="margin-top:0">共 ${data.length} 筆。這些貨之後在「出車點貨」刷出去，狀態就會自動變回配送中。</p>
+    <p class="muted" style="margin-top:0">共 ${data.length} 筆。這些貨之後在「出車點貨」刷出去，狀態就會自動變回配送中。「不會到」的貨不算在主介面的應到、未到件數裡；登記錯了，到主介面查單號按「取消留倉」。</p>
     <div class="tbl-wrap">
       <table class="tbl">
         <thead><tr><th>到貨日</th><th>快遞</th><th>單號</th><th>收件人 / 地址</th><th class="center">件數</th><th>原因</th><th>登記</th></tr></thead>
@@ -291,7 +295,7 @@ async function loadCurrent() {
                 <td class="mono">${esc(s.waybill_no)}</td>
                 <td>${esc(showName(s.receiver))}<br><small class="muted">${esc(s.address)}</small></td>
                 <td class="center">${s.pieces}</td>
-                <td><b>${esc(h.reason)}</b>${h.arrived_pieces != null ? `<br><small>到 ${h.arrived_pieces} 件</small>` : ''}${h.note ? `<br><small>${esc(h.note)}</small>` : ''}</td>
+                <td>${s.status === '不會到' ? '<span class="badge st-不會到">不會到</span> ' : ''}<b>${esc(h.reason)}</b>${h.arrived_pieces != null ? `<br><small>到 ${h.arrived_pieces} 件</small>` : ''}${h.note ? `<br><small>${esc(h.note)}</small>` : ''}</td>
                 <td>${h.created_at ? `${dateOf(h.created_at)}<br><small class="muted">${esc(h.staff?.name)}</small>` : ''}</td>
               </tr>`;
           }).join('')}
