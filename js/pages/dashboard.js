@@ -1,5 +1,5 @@
 import { db, toast, esc, today, showName, can } from '../app.js';
-import { downloadDriversExcel } from '../export.js';
+import { downloadDriversExcel, mergeStops } from '../export.js';
 
 const LS_QUERIER = 'dianhuo.querier';
 const OPEN = ['待到貨', '留倉', '部分出車'];   // 還沒完成的狀態
@@ -499,7 +499,7 @@ async function loadDrivers(date) {
   const box = document.getElementById('dash-drivers');
   const actions = document.getElementById('drivers-actions');
   const { data, error } = await db.from('dispatch_batches')
-    .select('driver_id, created_at, driver:staff!dispatch_batches_driver_id_fkey(name), dispatch_items(actual_pieces, shipment_id, shipments(is_cod, cod_amount, collect_amount))')
+    .select('driver_id, created_at, driver:staff!dispatch_batches_driver_id_fkey(name), dispatch_items(waybill_no, actual_pieces, system_pieces, shipment_id, shipments(is_cod, cod_amount, collect_amount))')
     .eq('work_date', date);
 
   if (error) { box.innerHTML = `<span class="error">讀取失敗：${esc(error.message)}</span>`; return; }
@@ -508,15 +508,22 @@ async function loadDrivers(date) {
   const by = {};
   for (const b of data) {
     const n = b.driver?.name || '?';
-    by[n] ??= { id: b.driver_id, rows: 0, pieces: 0, cod: 0, codRows: 0, missing: 0, first: b.created_at };
+    by[n] ??= { id: b.driver_id, items: [], first: b.created_at };
     if (b.created_at < by[n].first) by[n].first = b.created_at;
-    for (const it of b.dispatch_items) {
-      by[n].rows++;
-      by[n].pieces += it.actual_pieces;
-      if (!it.shipment_id) by[n].missing++;
+    by[n].items.push(...b.dispatch_items);
+  }
+  // 同一張單刷兩次只算一次（跟出車表一樣）
+  for (const v of Object.values(by)) {
+    const merged = mergeStops(v.items);
+    v.rows = merged.length;
+    v.pieces = merged.reduce((a, it) => a + (it.actual_pieces || 0), 0);
+    v.missing = merged.filter(it => !it.shipment_id).length;
+    v.dups = v.items.length - merged.length;
+    v.cod = 0; v.codRows = 0;
+    for (const it of merged) {
       const s = it.shipments;
       const amt = (s?.is_cod ? Number(s.cod_amount) || 0 : 0) + (Number(s?.collect_amount) || 0);
-      if (amt) { by[n].cod += amt; by[n].codRows++; }
+      if (amt) { v.cod += amt; v.codRows++; }
     }
   }
   const list = Object.entries(by).sort((a, b) => b[1].pieces - a[1].pieces);
@@ -532,12 +539,14 @@ async function loadDrivers(date) {
         <dt>件數</dt><dd><b>${v.pieces}</b> 件</dd>
         <dt>到付/代收</dt><dd>${v.cod ? `<span class="cod">${money(v.cod)}</span>` : '－'}</dd>
         ${v.missing ? `<dt>查無此號</dt><dd class="error">${v.missing} 筆</dd>` : ''}
+        ${v.dups ? `<dt>重複刷單</dt><dd class="warn-text">${v.dups} 筆</dd>` : ''}
       </dl>
       ${can('dispatch') ? `
         <div class="dc-actions">
           <button class="btn small dl-one" data-id="${v.id}" data-name="${esc(n)}">下載 Excel</button>
           <a class="btn small" href="#/route?date=${date}&driver=${v.id}">路線規劃</a>
         </div>` : ''}
+      ${can('dispatch_edit') ? `<button class="btn small ${v.dups ? 'warn-btn' : ''} edit-sheet" data-id="${v.id}" data-name="${esc(n)}" style="margin-top:6px">修改出車表</button>` : ''}
     </div>`).join('');
 
   actions.innerHTML = list.length > 1 && can('dispatch') ? `<button class="btn" id="dl-all">全部司機下載（一人一頁）</button>` : '';
@@ -552,6 +561,108 @@ async function loadDrivers(date) {
     dl([{ id: Number(b.dataset.id), name: b.dataset.name }], b)));
   document.getElementById('dl-all')?.addEventListener('click', e =>
     dl(list.map(([n, v]) => ({ id: v.id, name: n })), e.target));
+  box.querySelectorAll('.edit-sheet').forEach(b => b.addEventListener('click', () =>
+    openSheetEditor(date, Number(b.dataset.id), b.dataset.name, list.map(([n, v]) => ({ id: v.id, name: n })))));
+}
+
+// =====================================================
+// 修改出車表（要有「出車表修改」權限）：刪除重複、刪除刷錯的、改給別的司機
+// =====================================================
+async function openSheetEditor(date, driverId, driverName) {
+  const m = document.getElementById('detail-modal');
+  const { data: drivers } = await db.from('staff').select('id, name').eq('is_driver', true).eq('active', true).order('name');
+
+  const load = async () => {
+    const { data, error } = await db.from('dispatch_items')
+      .select('id, waybill_no, actual_pieces, system_pieces, shipment_id, created_at, batch_id, dispatch_batches!inner(work_date, driver_id, scanner_id), shipments(receiver, address)')
+      .eq('dispatch_batches.work_date', date)
+      .eq('dispatch_batches.driver_id', driverId)
+      .order('created_at');
+    if (error) { toast('讀取失敗：' + error.message, 'error'); return null; }
+    return data;
+  };
+
+  const draw = async () => {
+    const items = await load();
+    if (!items) return;
+    const key = it => String(it.waybill_no).toUpperCase().replace(/\s/g, '');
+    const seen = new Map();
+    items.forEach(it => seen.set(key(it), (seen.get(key(it)) || 0) + 1));
+    const firstOf = new Set();
+    const dupIds = items.filter(it => { const k = key(it); if (!firstOf.has(k)) { firstOf.add(k); return false; } return true; }).map(it => it.id);
+    const others = (drivers || []).filter(d => d.id !== driverId);
+
+    m.innerHTML = `
+      <div class="modal-box wide">
+        <div class="row between">
+          <h3 style="margin:0">修改出車表：${esc(driverName)}　<small class="muted">${esc(date)}，共 ${items.length} 筆</small></h3>
+          <button class="btn" id="se-close">關閉</button>
+        </div>
+        ${dupIds.length ? `
+          <div class="msg warn-msg" style="margin:8px 0">
+            有 <b>${dupIds.length}</b> 筆是重複刷到的（黃色）。
+            <button class="btn small primary" id="se-dedupe">一鍵刪除重複（每張單留第一筆）</button>
+          </div>` : `<p class="muted" style="margin:6px 0">沒有重複的單。刷錯的按「刪除」；要改給別的司機，選司機後按「改給」。</p>`}
+        <div style="max-height:60vh;overflow:auto">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>單號</th><th>收件人 / 地址</th><th class="center">件數</th><th>刷單時間</th><th></th></tr></thead>
+            <tbody>
+              ${items.map((it, i) => `
+                <tr class="${dupIds.includes(it.id) ? 'row-dup' : ''}" data-id="${it.id}">
+                  <td>${i + 1}</td>
+                  <td class="mono">${esc(it.waybill_no)}${dupIds.includes(it.id) ? ' <span class="badge st-部分出車">重複</span>' : ''}${it.shipment_id ? '' : ' <span class="badge st-待到貨">查無此號</span>'}</td>
+                  <td>${esc(showName(it.shipments?.receiver || ''))}<br><small class="muted">${esc(it.shipments?.address || '')}</small></td>
+                  <td class="center">${it.actual_pieces}</td>
+                  <td>${esc(timeOf(it.created_at))}</td>
+                  <td class="nowrap">
+                    <button class="btn small danger se-del">刪除</button>
+                    ${others.length ? `<select class="se-to" style="padding:2px 4px"><option value="">改給…</option>${others.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select>
+                    <button class="btn small se-move">改給</button>` : ''}
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin:8px 0 0">改完之後，主介面的司機卡片和「下載 Excel」會用最新的資料。</p>
+      </div>`;
+    m.hidden = false;
+
+    document.getElementById('se-close').onclick = () => { m.hidden = true; loadDrivers(date); };
+    document.getElementById('se-dedupe')?.addEventListener('click', async () => {
+      if (!confirm(`刪除 ${dupIds.length} 筆重複的？`)) return;
+      const { error } = await db.from('dispatch_items').delete().in('id', dupIds);
+      if (error) { toast('刪除失敗：' + error.message, 'error'); return; }
+      toast(`已刪除 ${dupIds.length} 筆重複`, 'ok'); draw();
+    });
+    m.querySelectorAll('.se-del').forEach(b => b.addEventListener('click', async () => {
+      const tr = b.closest('tr'); const id = Number(tr.dataset.id);
+      const it = items.find(x => x.id === id);
+      if (!confirm(`從 ${driverName} 的出車表刪除 ${it.waybill_no}？`)) return;
+      const { error } = await db.from('dispatch_items').delete().eq('id', id);
+      if (error) { toast('刪除失敗：' + error.message, 'error'); return; }
+      toast('已刪除', 'ok'); draw();
+    }));
+    m.querySelectorAll('.se-move').forEach(b => b.addEventListener('click', async () => {
+      const tr = b.closest('tr'); const id = Number(tr.dataset.id);
+      const to = Number(tr.querySelector('.se-to').value);
+      if (!to) { toast('請先選要改給哪位司機', 'warn'); return; }
+      const it = items.find(x => x.id === id);
+      const toName = others.find(d => d.id === to)?.name;
+      // 找那位司機當天的出車批次，沒有就建一個
+      let { data: bt } = await db.from('dispatch_batches').select('id').eq('work_date', date).eq('driver_id', to).order('created_at').limit(1);
+      let batchId = bt?.[0]?.id;
+      if (!batchId) {
+        const { data: nb, error: e1 } = await db.from('dispatch_batches')
+          .insert({ work_date: date, driver_id: to, scanner_id: it.dispatch_batches.scanner_id }).select('id').single();
+        if (e1) { toast('改給失敗：' + e1.message, 'error'); return; }
+        batchId = nb.id;
+      }
+      const { error } = await db.from('dispatch_items').update({ batch_id: batchId }).eq('id', id);
+      if (error) { toast('改給失敗：' + error.message, 'error'); return; }
+      toast(`${it.waybill_no} 已改給 ${toName}`, 'ok'); draw();
+    }));
+  };
+  draw();
 }
 
 // =====================================================
@@ -704,7 +815,7 @@ async function openDetail(s, log) {
               <td><b>${esc(d.dispatch_batches?.driver?.name)}</b></td>
               <td>${esc(d.dispatch_batches?.scanner?.name)}</td>
               <td class="center">${d.actual_pieces}${d.system_pieces ? ` / ${d.system_pieces}` : ''}</td>
-              <td>${can('dispatch') ? `<button class="btn small cancel-disp" data-id="${d.id}">取消出車</button>` : ''}</td>
+              <td>${can('dispatch_edit') ? `<button class="btn small cancel-disp" data-id="${d.id}">取消出車</button>` : ''}</td>
             </tr>`).join('')}
           </tbody>
         </table>` : `<p class="muted">還沒有出車</p>`}

@@ -1,4 +1,4 @@
-import { db, toast, esc, today, showName } from '../app.js';
+import { db, toast, esc, today, showName, can } from '../app.js';
 
 // 往回找幾天內的版單（分批到貨、留倉後才出車的單）
 const LOOKBACK_DAYS = 14;
@@ -267,6 +267,21 @@ async function onScan(raw) {
     // ---------- 版單裡找不到 ----------
     if (!data.length) {
       beep(false);
+      // 查無此號的單，同一位司機今天已經刷過 → 不能再加
+      const { data: dup } = await db.from('dispatch_items')
+        .select('id, created_at, dispatch_batches!inner(work_date, driver_id)')
+        .eq('waybill_no', code)
+        .eq('dispatch_batches.work_date', today())
+        .eq('dispatch_batches.driver_id', Number(document.getElementById('d-driver').value))
+        .limit(1);
+      if (dup?.length) {
+        await ask({
+          title: '⚠ 已經在這位司機的出車表裡',
+          body: `<p class="big-no">${esc(code)}</p><p>今天 ${esc(timeOf(dup[0].created_at))} 已經刷過（版單查無此號），不用再刷一次。</p>`,
+          buttons: [{ label: '知道了', value: null, primary: true, cancel: true }],
+        });
+        return;
+      }
       const r = await ask({
         title: '⚠ 版單查無此號',
         body: `<p class="big-no">${esc(code)}</p>
@@ -292,6 +307,16 @@ async function onScan(raw) {
     if (!open.length) {
       beep(false);
       const who = await lastDispatch(s.id);
+      // 同一位司機今天已經出過這張 → 不能再加（避免出車表重複）
+      if (who && who.date === today() && who.driverId === Number(document.getElementById('d-driver').value)) {
+        await ask({
+          title: '⚠ 已經在這位司機的出車表裡',
+          body: `<p class="big-no">${esc(s.waybill_no)}</p>
+                 <p>今天 ${esc(who.time)} 已經出給 <b>${esc(who.driver)}</b>，不用再刷一次。</p>`,
+          buttons: [{ label: '知道了', value: null, primary: true, cancel: true }],
+        });
+        return;
+      }
       const r = await ask({
         title: '⚠ 這張單已經出車過',
         body: `<p class="big-no">${esc(s.waybill_no)}</p>
@@ -380,7 +405,7 @@ function addItem(it) {
 
 async function lastDispatch(shipmentId) {
   const { data } = await db.from('dispatch_items')
-    .select('created_at, dispatch_batches(work_date, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name))')
+    .select('created_at, dispatch_batches(work_date, driver_id, driver:staff!dispatch_batches_driver_id_fkey(name), scanner:staff!dispatch_batches_scanner_id_fkey(name))')
     .eq('shipment_id', shipmentId)
     .order('created_at', { ascending: false })
     .limit(1);
@@ -390,6 +415,7 @@ async function lastDispatch(shipmentId) {
     date: d.dispatch_batches?.work_date || '',
     time: timeOf(d.created_at),
     driver: d.dispatch_batches?.driver?.name || '',
+    driverId: d.dispatch_batches?.driver_id,
     scanner: d.dispatch_batches?.scanner?.name || '',
   };
 }
@@ -570,7 +596,7 @@ async function loadSaved() {
             <td class="center">${b.dispatch_items.length}</td>
             <td class="center">${b.dispatch_items.reduce((a, x) => a + x.actual_pieces, 0)}</td>
             <td class="center">${b.dispatch_items.filter(x => !x.shipment_id).length || ''}</td>
-            <td><button class="btn small danger del-batch" data-id="${b.id}" data-n="${b.dispatch_items.length}" data-name="${esc(b.driver?.name)}">整批取消</button></td>
+            <td>${can('dispatch_edit') ? `<button class="btn small danger del-batch" data-id="${b.id}" data-n="${b.dispatch_items.length}" data-name="${esc(b.driver?.name)}">整批取消</button>` : ''}</td>
           </tr>
           ${open ? `
           <tr class="batch-detail"><td></td><td colspan="7">
@@ -580,7 +606,7 @@ async function loadSaved() {
                   <td class="mono">${esc(it.waybill_no)}${it.shipment_id ? '' : ' <small class="error">查無此號</small>'}</td>
                   <td>${esc(showName(it.shipments?.receiver))} <small class="muted">${esc(it.shipments?.address)}</small></td>
                   <td class="center">${it.actual_pieces}${it.system_pieces ? ` / ${it.system_pieces}` : ''} 件</td>
-                  <td><button class="btn small del-item-saved" data-id="${it.id}" data-no="${esc(it.waybill_no)}">取消這筆</button></td>
+                  <td>${can('dispatch_edit') ? `<button class="btn small del-item-saved" data-id="${it.id}" data-no="${esc(it.waybill_no)}">取消這筆</button>` : ''}</td>
                 </tr>`).join('')}
             </table>
           </td></tr>` : ''}`;

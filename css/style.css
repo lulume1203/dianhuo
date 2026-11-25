@@ -528,7 +528,7 @@ p.remark { margin: 4px 0; }
   max-width: 500px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
 }
-.modal-box.wide { max-width: 780px; max-height: 90vh; overflow-y: auto; }
+.modal-box.wide { max-width: 1000px; max-height: 90vh; overflow-y: auto; }
 .modal-box h3 { margin: 0 0 12px; font-size: 24px; }
 .modal-box h4 { margin: 20px 0 6px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
@@ -877,3 +877,16 @@ input[type="number"], input[type="date"], input:not([type]), select, textarea { 
 .bill-tbl input.note-input { text-align: left; }
 .bill-tbl .edit-ops { display: flex; flex-direction: column; gap: 4px; }
 .bill-tbl .edit-ops .btn { width: 100%; padding: 2px 4px; }
+
+/* 切換按鈕（對帳的快遞公司等） */
+.seg { display: inline-flex; border: 2px solid var(--primary); border-radius: 8px; overflow: hidden; }
+.seg-btn { font: inherit; font-weight: 700; padding: 4px 16px; border: 0; background: #fff; color: var(--primary); cursor: pointer; }
+.seg-btn + .seg-btn { border-left: 2px solid var(--primary); }
+.seg-btn.active { background: var(--primary); color: #fff; }
+.tbl tr.row-dup td { background: #fbf3dc; }
+.btn.warn-btn { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+.tbl tr.pay-ok td { background: #eef4ef; }
+.pay-tag { display: inline-block; padding: 1px 8px; border-radius: 6px; font-weight: 700; font-size: 15px; white-space: nowrap; }
+.pay-tag.ok { background: var(--ok); color: #fff; }
+.pay-tag.no { background: #eee; color: #777; }
+.pay-tag.extra { background: var(--warn-bg); color: var(--warn); }

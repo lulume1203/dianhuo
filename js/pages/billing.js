@@ -1,12 +1,18 @@
 import { db, toast, esc, today, showName } from '../app.js';
 
-const CARRIER = '來速捷';
-const TITLE = '來速捷三峽站送件費請款明細';
+// 對帳的快遞公司：上方切換；每家有自己的每件送件費
+const BILL_CARRIERS = ['來速捷', '泓珊'];
+const RATE_KEY = name => (name === '來速捷' ? 'laisuje_fee_per_piece' : `fee_per_piece:${name}`);
+const DEFAULT_RATE = { 來速捷: 40, 泓珊: 30 };
+let CARRIER = '來速捷';
+let TITLE = '來速捷三峽站送件費請款明細';
 const EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 const DONE = ['配送中', '部分出車', '已送達'];
 
 let carrierId = null;
-let rate = 40;          // 每件送件費
+let rates = [{ from: '2000-01-01', rate: 40 }];   // 每件送件費（依日期生效，舊到新）
+// 這一天適用的單價：改單價時可以指定「從哪天開始」，之前的日期維持舊單價
+const rateOn = d => { let r = rates[0].rate; for (const x of rates) if (x.from <= d) r = x.rate; return r; };
 let rows = [];          // 目前畫面上的資料
 let editing = null;     // 正在編輯的 shipment id
 
@@ -17,7 +23,7 @@ const fmt = n => Number(n || 0).toLocaleString();
 
 function feeOf(s) {
   const b = Array.isArray(s.billing_items) ? s.billing_items[0] : s.billing_items;
-  const base = b?.base_fee != null ? Number(b.base_fee) : s.pieces * rate;
+  const base = b?.base_fee != null ? Number(b.base_fee) : s.pieces * rateOn(s.work_date);
   const sur = Number(b?.surcharge || 0);
   return { base, sur, note: b?.note || '', custom: b?.base_fee != null, total: base + sur };
 }
@@ -53,13 +59,16 @@ export async function renderBilling(page) {
 
     <div class="split fill wide-left">
       <div class="card">
-        <h3 class="sub">來速捷每日對帳</h3>
+        <div class="row" style="gap:10px;align-items:center;margin-bottom:6px">
+          <h3 class="sub" style="margin:0">每日對帳</h3>
+          <div class="seg" id="b-carriers">${BILL_CARRIERS.map(n => `<button class="seg-btn" data-c="${n}">${n}</button>`).join('')}</div>
+        </div>
         <div class="row">
           <label>日期 <input type="date" id="b-date" value="${t}"></label>
           <label class="chk"><input type="checkbox" id="b-done" checked> 只列出已出車的</label>
           <span class="muted">｜</span>
-          <label>每件送件費 <input type="number" id="b-rate" min="0" style="width:90px"> 元</label>
-          <button class="btn small" id="b-rate-save">儲存單價</button>
+          <span>這天每件送件費 <b id="b-rate-now">-</b> 元</span>
+          <button class="btn small" id="b-rate-save">調整單價</button>
         </div>
         <div class="stats" id="b-stats"></div>
         <div class="scroll"><div id="b-list" class="muted">載入中…</div></div>
@@ -67,7 +76,7 @@ export async function renderBilling(page) {
       </div>
 
       <div class="card">
-        <h3 class="sub">下載請款 Excel</h3>
+        <h3 class="sub" id="x-title">下載請款 Excel</h3>
         <div class="fields">
           <label>期間（從）<input type="date" id="x-from" value="${monthStart}"></label>
           <label>期間（到）<input type="date" id="x-to" value="${t}"></label>
@@ -78,36 +87,92 @@ export async function renderBilling(page) {
         <p class="muted">A4 橫印，一頁放不下會自動接下一頁，表頭會重複並加上頁碼。</p>
         <p class="msg warn-msg" style="font-weight:400">Excel 是跟同業對帳用的，姓名不遮罩，請小心保管。</p>
       </div>
-    </div>`;
+    </div>
+    <div id="b-modal" class="modal" hidden></div>`;
 
-  const { data: c } = await db.from('carriers').select('id').eq('name', CARRIER).maybeSingle();
-  if (!c) { document.getElementById('b-list').textContent = `找不到「${CARRIER}」這家快遞公司`; return; }
-  carrierId = c.id;
-
-  const { data: st } = await db.from('app_settings').select('value').eq('key', 'laisuje_fee_per_piece').maybeSingle();
-  rate = Number(st?.value ?? 40);
-  document.getElementById('b-rate').value = rate;
-
+  try { const saved = localStorage.getItem('dianhuo.billCarrier'); if (BILL_CARRIERS.includes(saved)) CARRIER = saved; } catch {}
+  document.querySelectorAll('#b-carriers .seg-btn').forEach(b => b.addEventListener('click', () => switchCarrier(b.dataset.c)));
   document.getElementById('b-date').addEventListener('change', load);
   document.getElementById('b-done').addEventListener('change', load);
   document.getElementById('b-rate-save').addEventListener('click', saveRate);
   document.getElementById('x-go').addEventListener('click', downloadExcel);
+  switchCarrier(CARRIER);
+}
+
+async function switchCarrier(name) {
+  CARRIER = name;
+  TITLE = `${name}三峽站送件費請款明細`;
+  try { localStorage.setItem('dianhuo.billCarrier', name); } catch {}
+  document.querySelectorAll('#b-carriers .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.c === name));
+  document.getElementById('x-title').textContent = `下載${name}請款 Excel`;
+  const { data: c } = await db.from('carriers').select('id').eq('name', CARRIER).maybeSingle();
+  if (!c) { carrierId = null; rows = []; document.getElementById('b-list').textContent = `找不到「${CARRIER}」這家快遞公司`; return; }
+  carrierId = c.id;
+  const { data: st } = await db.from('app_settings').select('value').eq('key', RATE_KEY(name)).maybeSingle();
+  const v = st?.value;
+  rates = Array.isArray(v?.history) && v.history.length
+    ? [...v.history].map(x => ({ from: x.from, rate: Number(x.rate) })).sort((a, b) => a.from.localeCompare(b.from))
+    : [{ from: '2000-01-01', rate: Number(v ?? DEFAULT_RATE[name] ?? 40) }];
   load();
 }
 
-async function saveRate() {
-  const v = Number(document.getElementById('b-rate').value);
-  if (!(v >= 0)) { toast('請輸入正確的金額', 'warn'); return; }
-  if (!confirm(`每件送件費改成 ${v} 元？\n（已經手動改過送件費的單不受影響）`)) return;
-  const { error } = await db.from('app_settings').upsert({ key: 'laisuje_fee_per_piece', value: v, updated_at: new Date().toISOString() });
-  if (error) { toast('儲存失敗：' + error.message, 'error'); return; }
-  rate = v;
-  toast('已儲存單價', 'ok');
-  load();
+// 調整單價：可以設定「從哪天開始用新單價」，之前的日期不受影響
+function saveRate() {
+  const m = document.getElementById('b-modal');
+  const date = document.getElementById('b-date').value;
+  let rows = rates.map(x => ({ ...x }));
+  const draw = () => {
+    m.innerHTML = `
+      <div class="modal-box">
+        <h3>${esc(CARRIER)}每件送件費</h3>
+        <p class="muted" style="margin:0 0 8px">每一列是「從這天開始」用的單價。要漲價，就新增一列、填新單價和開始日期；之前的日期維持舊單價。</p>
+        <table class="tbl">
+          <thead><tr><th>從哪天開始</th><th>每件送件費</th><th></th></tr></thead>
+          <tbody>${rows.map((x, i) => `
+            <tr data-i="${i}">
+              <td>${i === 0 ? '<span class="muted">最早（之前全部）</span>' : `<input type="date" class="r-from" value="${x.from}">`}</td>
+              <td><input type="number" class="r-rate" min="0" value="${x.rate}" style="width:90px"> 元</td>
+              <td>${i === 0 ? '' : '<button class="btn small danger r-del">刪除</button>'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <button class="btn small" id="r-add" style="margin-top:6px">＋ 新增一個單價（例如 ${esc(date)} 起）</button>
+        <p class="muted" style="margin:8px 0 0">已經按「編輯」手動改過送件費的單不受影響。</p>
+        <div class="modal-actions">
+          <button class="btn" id="r-cancel">取消</button>
+          <button class="btn primary" id="r-save">儲存</button>
+        </div>
+      </div>`;
+    m.hidden = false;
+    const sync = () => m.querySelectorAll('tbody tr').forEach(tr => {
+      const i = Number(tr.dataset.i);
+      rows[i].rate = Number(tr.querySelector('.r-rate').value);
+      const f = tr.querySelector('.r-from'); if (f) rows[i].from = f.value;
+    });
+    m.querySelectorAll('.r-del').forEach(b => b.addEventListener('click', () => { sync(); rows.splice(Number(b.closest('tr').dataset.i), 1); draw(); }));
+    document.getElementById('r-add').addEventListener('click', () => { sync(); rows.push({ from: date, rate: rateOn(date) }); draw(); });
+    document.getElementById('r-cancel').addEventListener('click', () => { m.hidden = true; });
+    document.getElementById('r-save').addEventListener('click', async () => {
+      sync();
+      if (rows.some(x => !(x.rate >= 0) || !x.from)) { toast('請填好日期和單價', 'warn'); return; }
+      rows[0].from = '2000-01-01';
+      const froms = rows.map(x => x.from);
+      if (new Set(froms).size !== froms.length) { toast('有兩列的開始日期一樣，請改一下', 'warn'); return; }
+      rows.sort((a, b) => a.from.localeCompare(b.from));
+      const { error } = await db.from('app_settings').upsert({ key: RATE_KEY(CARRIER), value: { history: rows }, updated_at: new Date().toISOString() });
+      if (error) { toast('儲存失敗：' + error.message, 'error'); return; }
+      rates = rows;
+      m.hidden = true;
+      toast('已儲存單價', 'ok');
+      load();
+    });
+  };
+  draw();
 }
 
 async function load() {
   editing = null;
+  if (!carrierId) return;
   const date = document.getElementById('b-date').value;
   const box = document.getElementById('b-list');
   try { rows = await fetchRange(date, date, document.getElementById('b-done').checked); }
@@ -116,6 +181,7 @@ async function load() {
 }
 
 function render() {
+  document.getElementById('b-rate-now').textContent = rateOn(document.getElementById('b-date').value);
   const box = document.getElementById('b-list');
   const tot = rows.reduce((a, s) => { const f = feeOf(s); a.p += s.pieces; a.b += f.base; a.s += f.sur; a.t += f.total; return a; }, { p: 0, b: 0, s: 0, t: 0 });
 
@@ -173,7 +239,7 @@ function rowHtml(s) {
         <td>${esc(showName(s.receiver))}</td>
         <td class="center">${s.pieces}</td>
         <td><span class="badge st-${esc(s.status)}">${esc(s.status)}</span></td>
-        <td class="money"><input type="number" min="0" id="e-base" value="${f.custom ? f.base : ''}" placeholder="${s.pieces * rate}"></td>
+        <td class="money"><input type="number" min="0" id="e-base" value="${f.custom ? f.base : ''}" placeholder="${s.pieces * rateOn(s.work_date)}"></td>
         <td class="money"><input type="number" id="e-sur" value="${f.sur || ''}" placeholder="0"></td>
         <td><input class="note-input" id="e-note" value="${esc(f.note)}" maxlength="50" placeholder="例如：偏遠、上樓"></td>
         <td class="money">-</td>

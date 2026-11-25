@@ -6,6 +6,22 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 import { db, can } from './app.js';
 
 // 取得某司機某天的出車明細（依刷單順序）
+// 同一位司機、同一天，同一張單刷了兩次以上 → 出車表只列一次
+// 件數：有版單件數的，加總但不超過版單件數；查無此號的取較大的那次
+export function mergeStops(items) {
+  const map = new Map();
+  const out = [];
+  for (const it of items) {
+    const k = String(it.waybill_no || '').toUpperCase().replace(/\s/g, '');
+    const m = map.get(k);
+    if (!m) { const c = { ...it, dupCount: 1 }; map.set(k, c); out.push(c); continue; }
+    m.dupCount++;
+    const sum = (m.actual_pieces || 0) + (it.actual_pieces || 0);
+    m.actual_pieces = m.system_pieces ? Math.min(sum, m.system_pieces) : Math.max(m.actual_pieces || 0, it.actual_pieces || 0);
+  }
+  return out;
+}
+
 export async function fetchDriverStops(date, driverId) {
   const { data, error } = await db.from('dispatch_items')
     .select(`waybill_no, system_pieces, actual_pieces, created_at, shipment_id,
@@ -28,7 +44,7 @@ export async function fetchDriverStops(date, driverId) {
     }
   }
 
-  return data.map(d => {
+  return mergeStops(data.map(d => {
     const s = d.shipments || {};
     return {
       shipment_id: d.shipment_id,
@@ -47,7 +63,7 @@ export async function fetchDriverStops(date, driverId) {
       remark: s.remark || '',
       notFound: !d.shipment_id,
     };
-  });
+  }));
 }
 
 // 一位司機一張工作表

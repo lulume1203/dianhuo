@@ -12,6 +12,7 @@ import { renderAdmin } from './pages/admin.js';
 import { renderAccount } from './pages/account.js';
 import { renderDeliver } from './pages/deliver.js';
 import { renderSurcharge } from './pages/surcharge.js';
+import { renderDriverPay } from './pages/driverpay.js';
 
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -76,7 +77,7 @@ export const accountName = email => String(email || '').replace(ACCOUNT_DOMAIN, 
 // =====================================================
 // 權限
 // =====================================================
-export const perms = { admin: false, query: false, dispatch: false, import: false, billing: false, deliver: false, surcharge: false, any: false };
+export const perms = { admin: false, query: false, dispatch: false, import: false, billing: false, deliver: false, surcharge: false, dispatch_edit: false, driverpay: false, any: false };
 export let profile = null;
 export const can = p => !!perms[p];
 
@@ -89,7 +90,9 @@ function setPerms(p) {
   perms.billing  = a || !!p?.can_billing;
   perms.deliver  = a || !!p?.can_deliver || !!p?.can_dispatch;
   perms.surcharge = a || !!p?.can_surcharge;
-  perms.any      = perms.query || perms.dispatch || perms.import || perms.billing || perms.surcharge;
+  perms.dispatch_edit = a || !!p?.can_dispatch_edit;
+  perms.driverpay = a || !!p?.can_driverpay;
+  perms.any      = perms.query || perms.dispatch || perms.import || perms.billing || perms.surcharge || perms.dispatch_edit || perms.driverpay;
 }
 
 // =====================================================
@@ -104,6 +107,7 @@ const routes = {
   deliver:   { fn: renderDeliver,   perm: 'deliver' },
   billing:   { fn: renderBilling,   perm: 'billing' },
   surcharge: { fn: renderSurcharge, perm: 'surcharge' },
+  driverpay: { fn: renderDriverPay, perm: 'driverpay' },
   staff:     { fn: renderStaff,     perm: 'admin' },
   admin:     { fn: renderAdmin,     perm: 'admin' },
   account:   { fn: renderAccount,   perm: null },
