@@ -890,3 +890,7 @@ input[type="number"], input[type="date"], input:not([type]), select, textarea { 
 .pay-tag.ok { background: var(--ok); color: #fff; }
 .pay-tag.no { background: #eee; color: #777; }
 .pay-tag.extra { background: var(--warn-bg); color: var(--warn); }
+.bill-addr { font-size: 15px; color: var(--text); }
+.sug-tag { display: inline-block; font: inherit; font-size: 14px; font-weight: 700; padding: 1px 8px; border-radius: 6px; border: 1.5px dashed var(--primary); background: var(--primary-tint); color: var(--primary-d); cursor: pointer; white-space: nowrap; }
+.sug-tag:hover { background: #e4dcea; }
+.sug-tag.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); cursor: default; }

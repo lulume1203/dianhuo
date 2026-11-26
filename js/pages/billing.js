@@ -32,7 +32,7 @@ async function fetchRange(from, to, onlyDone) {
   const out = [];
   for (let i = 0; ; i += 1000) {
     let q = db.from('shipments')
-      .select('id, work_date, origin_station, waybill_no, sender, receiver, pieces, status, billing_items(base_fee, surcharge, note)')
+      .select('id, work_date, origin_station, waybill_no, sender, receiver, address, pieces, status, billing_items(base_fee, surcharge, note)')
       .eq('carrier_id', carrierId)
       .gte('work_date', from).lte('work_date', to)
       .order('origin_station').order('work_date').order('waybill_no')
@@ -175,7 +175,7 @@ async function load() {
   if (!carrierId) return;
   const date = document.getElementById('b-date').value;
   const box = document.getElementById('b-list');
-  try { rows = await fetchRange(date, date, document.getElementById('b-done').checked); }
+  try { [rows] = await Promise.all([fetchRange(date, date, document.getElementById('b-done').checked), loadSurchargeRules()]); }
   catch (e) { box.innerHTML = `<span class="error">讀取失敗：${esc(e.message)}</span>`; return; }
   render();
 }
@@ -202,23 +202,23 @@ function render() {
   box.innerHTML = `
     <table class="tbl bill-tbl">
       <colgroup>
-        <col style="width:15%"><col style="width:15%"><col style="width:12%"><col style="width:6%"><col style="width:10%">
-        <col style="width:9%"><col style="width:8%"><col style="width:11%"><col style="width:7%"><col style="width:7%">
+        <col style="width:15%"><col style="width:33%"><col style="width:5%">
+        <col style="width:8%"><col style="width:11%"><col style="width:12%"><col style="width:8%"><col style="width:8%">
       </colgroup>
       <thead><tr>
-        <th>單號</th><th>寄件者</th><th>收件者</th><th class="center">件數</th><th>狀態</th>
+        <th>單號 / 寄件者</th><th>收件者 / 地址</th><th class="center">件數</th>
         <th class="right">送件費</th><th class="right">加價</th><th>說明</th><th class="right">小計</th><th></th>
       </tr></thead>
       <tbody>
         ${[...groups.entries()].map(([st, list]) => {
           const sub = list.reduce((a, s) => a + feeOf(s).total, 0);
           return `
-            <tr class="station-head"><td colspan="10">${esc(st)}　<span class="muted">${list.length} 筆，小計 $${fmt(sub)}</span></td></tr>
+            <tr class="station-head"><td colspan="8">${esc(st)}　<span class="muted">${list.length} 筆，小計 $${fmt(sub)}</span></td></tr>
             ${list.map(s => rowHtml(s)).join('')}`;
         }).join('')}
       </tbody>
       <tfoot><tr>
-        <td colspan="3">合計</td><td class="center">${tot.p}</td><td></td>
+        <td colspan="2">合計</td><td class="center">${tot.p}</td>
         <td class="money">${fmt(tot.b)}</td><td class="money">${fmt(tot.s)}</td><td></td><td class="money">${fmt(tot.t)}</td><td></td>
       </tr></tfoot>
     </table>`;
@@ -226,7 +226,84 @@ function render() {
   box.querySelectorAll('.b-edit').forEach(b => b.addEventListener('click', () => { editing = Number(b.dataset.id); render(); }));
   box.querySelectorAll('.b-cancel').forEach(b => b.addEventListener('click', () => { editing = null; render(); }));
   box.querySelectorAll('.b-save').forEach(b => b.addEventListener('click', () => saveRow(Number(b.dataset.id))));
+  box.querySelectorAll('.b-suggest').forEach(b => b.addEventListener('click', () => applySuggest(Number(b.dataset.id), Number(b.dataset.fee), b.dataset.note)));
   box.querySelector('.editing input')?.focus();
+}
+
+// 單號（下面小字寄件者）、收件者（下面地址）、件數
+function firstCells(s) {
+  const st = ['配送中', '已送達'].includes(s.status) ? '' : ` <span class="badge st-${esc(s.status)}">${esc(s.status)}</span>`;
+  return `
+    <td><span class="mono">${esc(s.waybill_no)}</span>${st}<br><small class="muted">${esc(showName(s.sender || ''))}</small></td>
+    <td><b>${esc(showName(s.receiver || ''))}</b><br><span class="bill-addr">${esc(s.address || '')}</span></td>
+    <td class="center">${s.pieces}</td>`;
+}
+
+// ---------- 依地址比對「加價區域」，給建議（按一下套用） ----------
+let surchargeRules = null;   // null＝還沒讀；[]＝沒權限或沒資料
+const CITY_ALIAS = { 新竹市: ['新竹市'], 新竹: ['新竹縣'], 嘉義市: ['嘉義市'], 嘉義: ['嘉義縣'], 馬祖: ['連江', '馬祖'] };
+const CITIES = ['基隆', '台北', '新北', '桃園', '新竹市', '新竹', '苗栗', '台中', '彰化', '南投', '雲林', '嘉義市', '嘉義', '台南', '高雄', '屏東', '宜蘭', '花蓮', '台東', '澎湖', '金門', '馬祖'];
+const coreOf = d => String(d || '').replace(/(區|鄉|鎮|市)$/, '');
+const cityIn = (addr, c) => (CITY_ALIAS[c] || [c]).some(n => addr.includes(n));
+
+async function loadSurchargeRules() {
+  if (surchargeRules) return;
+  const all = [];
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await db.from('surcharge_rules').select('city, district, place, kind, fee').range(i, i + 999);
+    if (error || !data) break;
+    all.push(...data);
+    if (data.length < 1000) break;
+  }
+  surchargeRules = all;
+}
+
+function suggestFor(s) {
+  if (!surchargeRules?.length) return [];
+  const addr = String(s.address || '').replace(/臺/g, '台').replace(/\s/g, '');
+  if (!addr) return [];
+  const hay = addr + String(s.receiver || '');
+  const addrCity = CITIES.find(c => cityIn(addr, c));
+  const hits = [];
+  for (const r of surchargeRules) {
+    if (r.kind === '加價' && r.fee == null) continue;
+    if (r.city !== '全台') {
+      if (addrCity && addrCity !== r.city) continue;
+      const d = coreOf(r.district);
+      if (d && d !== '全' && d !== '全縣' && !addr.includes(d)) continue;
+    }
+    const place = String(r.place || '').replace(/[（(].*?[)）]/g, '').trim();
+    if (place) {
+      const parts = place.split(/[、,，]/).map(x => x.trim()).filter(x => x.length >= 2);
+      if (!parts.some(x => hay.includes(x))) continue;
+    } else if (r.city === '全台' || !r.district || r.district === '全市' || r.district === '全縣') {
+      if (r.city === '全台' || !addrCity) continue;   // 整個縣市都加價的，地址要寫到縣市才算
+    }
+    hits.push({ ...r, score: place ? 2 : 1 });
+  }
+  return hits.sort((a, b) => b.score - a.score || (b.fee || 0) - (a.fee || 0));
+}
+
+function suggestHtml(s) {
+  const hits = suggestFor(s);
+  if (!hits.length) return '';
+  const h = hits[0];
+  const label = [h.district, h.place].filter(Boolean).join(' ') || h.city;
+  const all = hits.slice(0, 5).map(x => `${[x.city, x.district, x.place].filter(Boolean).join(' ')}：${x.kind === '加價' ? '+' + x.fee : x.kind}`).join('\n');
+  if (h.kind !== '加價') return `<span class="sug-tag warn" title="${esc(all)}">加價表：${esc(h.kind)}</span>`;
+  return `<button class="sug-tag b-suggest" data-id="${s.id}" data-fee="${h.fee}" data-note="${esc('加價表：' + label)}" title="${esc(all + '\n（按一下套用）')}">建議 +${h.fee}</button>`;
+}
+
+async function applySuggest(id, fee, note) {
+  const s = rows.find(x => x.id === id);
+  const b = Array.isArray(s?.billing_items) ? s.billing_items[0] : s?.billing_items;
+  const { error } = await db.from('billing_items').upsert({
+    shipment_id: id, base_fee: b?.base_fee ?? null, surcharge: fee,
+    note: (b?.note ? b.note + '；' : '') + note, updated_at: new Date().toISOString(),
+  }, { onConflict: 'shipment_id' });
+  if (error) { toast('套用失敗：' + error.message, 'error'); return; }
+  toast(`已套用加價 ${fee} 元`, 'ok');
+  load();
 }
 
 function rowHtml(s) {
@@ -234,11 +311,7 @@ function rowHtml(s) {
   if (editing === s.id) {
     return `
       <tr class="editing" data-id="${s.id}">
-        <td class="mono">${esc(s.waybill_no)}</td>
-        <td>${esc(showName(s.sender))}</td>
-        <td>${esc(showName(s.receiver))}</td>
-        <td class="center">${s.pieces}</td>
-        <td><span class="badge st-${esc(s.status)}">${esc(s.status)}</span></td>
+        ${firstCells(s)}
         <td class="money"><input type="number" min="0" id="e-base" value="${f.custom ? f.base : ''}" placeholder="${s.pieces * rateOn(s.work_date)}"></td>
         <td class="money"><input type="number" id="e-sur" value="${f.sur || ''}" placeholder="0"></td>
         <td><input class="note-input" id="e-note" value="${esc(f.note)}" maxlength="50" placeholder="例如：偏遠、上樓"></td>
@@ -248,13 +321,9 @@ function rowHtml(s) {
   }
   return `
     <tr>
-      <td class="mono">${esc(s.waybill_no)}</td>
-      <td>${esc(showName(s.sender))}</td>
-      <td>${esc(showName(s.receiver))}</td>
-      <td class="center">${s.pieces}</td>
-      <td><span class="badge st-${esc(s.status)}">${esc(s.status)}</span></td>
+      ${firstCells(s)}
       <td class="money ${f.custom ? 'edited' : ''}">${fmt(f.base)}</td>
-      <td class="money ${f.sur ? 'edited' : ''}">${f.sur ? fmt(f.sur) : ''}</td>
+      <td class="money ${f.sur ? 'edited' : ''}">${f.sur ? fmt(f.sur) : suggestHtml(s)}</td>
       <td>${esc(f.note)}</td>
       <td class="money"><b>${fmt(f.total)}</b></td>
       <td><button class="btn small b-edit" data-id="${s.id}">編輯</button></td>
